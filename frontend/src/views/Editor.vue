@@ -33,12 +33,12 @@
     <!-- 主体区域 -->
     <div class="editor-body">
       <!-- 中间画布 -->
-      <div class="canvas-wrapper" :class="{ 'with-panel': canvasStore.selectedNodeId }">
+      <div class="canvas-wrapper" :class="{ 'with-panel': canvasStore.editingNodeId }">
         <WorkflowCanvas />
       </div>
       
-      <!-- 右侧属性面板 - 只在选中节点时显示 -->
-      <PropertyPanel v-if="canvasStore.selectedNodeId" />
+      <!-- 右侧属性面板 - 只在编辑节点时显示 -->
+      <PropertyPanel v-if="canvasStore.editingNodeId" />
     </div>
     
     <!-- 底部工具栏 - 固定在视口底部居中 -->

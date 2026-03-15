@@ -32,19 +32,23 @@
         <button 
           class="menu-trigger"
           title="更多操作"
-          @mousedown.stop
-          @click.stop="toggleMenu"
+          @mousedown.stop.prevent
+          @click.stop.prevent="toggleMenu"
         >
           ⋮
         </button>
         
         <!-- 下拉菜单 -->
-        <div v-if="showMenu" class="node-menu" v-click-outside="closeMenu">
-          <div class="menu-item" @click.stop="handleCopy">
+        <div v-if="showMenu" class="node-menu" @click.stop.prevent v-click-outside="closeMenu">
+          <div class="menu-item" @click="handleEdit">
+            <span class="menu-icon">✎</span>
+            <span class="menu-text">编辑</span>
+          </div>
+          <div class="menu-item" @click="handleCopy">
             <span class="menu-icon">⧉</span>
             <span class="menu-text">复制</span>
           </div>
-          <div class="menu-item delete" @click.stop="handleDelete">
+          <div class="menu-item delete" @click="handleDelete">
             <span class="menu-icon">🗑</span>
             <span class="menu-text">删除</span>
           </div>
@@ -70,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { WorkflowNode as WorkflowNodeType } from '@/types/workflow'
 import { getNodeTypeInfo } from '@/config/nodeTypes'
 
@@ -85,9 +89,23 @@ const emit = defineEmits<{
   (e: 'port-mouseup', event: MouseEvent): void
   (e: 'delete'): void
   (e: 'copy'): void
+  (e: 'edit'): void
 }>()
 
 const showMenu = ref(false)
+const canToggleMenu = ref(true)
+
+watch(() => props.selected, (newVal, oldVal) => {
+  if (newVal && !oldVal) {
+    canToggleMenu.value = false
+    setTimeout(() => {
+      canToggleMenu.value = true
+    }, 200)
+  }
+  if (!newVal) {
+    showMenu.value = false
+  }
+})
 
 const nodeTypeInfo = computed(() => getNodeTypeInfo(props.node.type))
 
@@ -121,11 +139,17 @@ const configPreview = computed(() => {
 })
 
 function toggleMenu() {
+  if (!canToggleMenu.value) return
   showMenu.value = !showMenu.value
 }
 
 function closeMenu() {
   showMenu.value = false
+}
+
+function handleEdit() {
+  emit('edit')
+  closeMenu()
 }
 
 function handleCopy() {

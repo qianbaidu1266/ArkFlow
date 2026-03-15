@@ -137,7 +137,7 @@ const canvasStore = useCanvasStore()
 const jsonValues = ref<Record<string, string>>({})
 
 const selectedNode = computed(() => {
-  const nodeId = canvasStore.selectedNodeId
+  const nodeId = canvasStore.editingNodeId
   return nodeId ? workflowStore.nodes[nodeId] : null
 })
 

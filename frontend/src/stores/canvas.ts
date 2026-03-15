@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import type { CanvasState, Position } from '@/types/workflow'
 
 export const useCanvasStore = defineStore('canvas', () => {
-  // State
   const scale = ref(1)
   const offsetX = ref(0)
   const offsetY = ref(0)
@@ -13,6 +12,7 @@ export const useCanvasStore = defineStore('canvas', () => {
   const connectingFrom = ref<string | null>(null)
   const selectedNodeId = ref<string | null>(null)
   const selectedEdgeId = ref<string | null>(null)
+  const editingNodeId = ref<string | null>(null)
   const dragStart = ref<Position | null>(null)
   const dragOffset = ref<Position>({ x: 0, y: 0 })
   
@@ -82,7 +82,6 @@ export const useCanvasStore = defineStore('canvas', () => {
     }
   }
   
-  // 选择边
   function selectEdge(edgeId: string | null) {
     selectedEdgeId.value = edgeId
     if (edgeId) {
@@ -90,10 +89,14 @@ export const useCanvasStore = defineStore('canvas', () => {
     }
   }
   
-  // 清除选择
+  function setEditingNode(nodeId: string | null) {
+    editingNodeId.value = nodeId
+  }
+  
   function clearSelection() {
     selectedNodeId.value = null
     selectedEdgeId.value = null
+    editingNodeId.value = null
   }
   
   // 开始画布拖拽
@@ -128,7 +131,6 @@ export const useCanvasStore = defineStore('canvas', () => {
     connectingFrom.value = null
   }
   
-  // 屏幕坐标转画布坐标
   function screenToCanvas(screenX: number, screenY: number): Position {
     return {
       x: (screenX - offsetX.value) / scale.value,
@@ -136,7 +138,6 @@ export const useCanvasStore = defineStore('canvas', () => {
     }
   }
   
-  // 画布坐标转屏幕坐标
   function canvasToScreen(canvasX: number, canvasY: number): Position {
     return {
       x: canvasX * scale.value + offsetX.value,
@@ -145,7 +146,6 @@ export const useCanvasStore = defineStore('canvas', () => {
   }
   
   return {
-    // State
     scale,
     offsetX,
     offsetY,
@@ -155,14 +155,13 @@ export const useCanvasStore = defineStore('canvas', () => {
     connectingFrom,
     selectedNodeId,
     selectedEdgeId,
+    editingNodeId,
     dragStart,
     dragOffset,
     
-    // Getters
     transform,
     canvasState,
     
-    // Actions
     zoom,
     setScale,
     pan,
@@ -170,6 +169,7 @@ export const useCanvasStore = defineStore('canvas', () => {
     resetView,
     selectNode,
     selectEdge,
+    setEditingNode,
     clearSelection,
     startDragging,
     startDraggingNode,

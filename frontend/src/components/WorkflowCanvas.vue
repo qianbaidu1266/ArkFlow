@@ -49,6 +49,7 @@
         @port-mouseup="handlePortMouseUp($event, node)"
         @delete="deleteNode(node.id)"
         @copy="copyNode(node)"
+        @edit="editNode(node.id)"
       />
     </div>
     
@@ -74,18 +75,20 @@ const canvasRef = ref<HTMLElement>()
 const workflowStore = useWorkflowStore()
 const canvasStore = useCanvasStore()
 
-// 删除节点
 function deleteNode(nodeId: string) {
   workflowStore.deleteNode(nodeId)
   canvasStore.clearSelection()
 }
 
-// 复制节点
 function copyNode(node: WorkflowNodeType) {
   const newNode = workflowStore.duplicateNode(node.id)
   if (newNode) {
     canvasStore.selectNode(newNode.id)
   }
+}
+
+function editNode(nodeId: string) {
+  canvasStore.setEditingNode(nodeId)
 }
 
 // 拖拽线
