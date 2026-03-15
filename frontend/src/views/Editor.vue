@@ -210,7 +210,46 @@ function zoomOut() {
 }
 
 function fitCanvas() {
-  canvasStore.resetView()
+  if (!workflowStore.currentWorkflow) return
+  
+  const nodes = Object.values(workflowStore.currentWorkflow.nodes)
+  if (nodes.length === 0) {
+    canvasStore.resetView()
+    return
+  }
+  
+  const nodeWidth = 180
+  const nodeHeight = 80
+  const padding = 60
+  
+  let minX = Infinity, minY = Infinity
+  let maxX = -Infinity, maxY = -Infinity
+  
+  nodes.forEach(node => {
+    minX = Math.min(minX, node.position.x)
+    minY = Math.min(minY, node.position.y)
+    maxX = Math.max(maxX, node.position.x + nodeWidth)
+    maxY = Math.max(maxY, node.position.y + nodeHeight)
+  })
+  
+  const contentWidth = maxX - minX + padding * 2
+  const contentHeight = maxY - minY + padding * 2
+  
+  const canvasWidth = window.innerWidth - (canvasStore.selectedNodeId ? 320 : 0)
+  const canvasHeight = window.innerHeight - 120
+  
+  const scaleX = canvasWidth / contentWidth
+  const scaleY = canvasHeight / contentHeight
+  const newScale = Math.min(scaleX, scaleY, 1.5)
+  
+  const centerX = (minX + maxX) / 2
+  const centerY = (minY + maxY) / 2
+  
+  const offsetX = canvasWidth / 2 - centerX * newScale
+  const offsetY = canvasHeight / 2 - centerY * newScale
+  
+  canvasStore.setScale(newScale)
+  canvasStore.setOffset(offsetX, offsetY)
 }
 
 function undo() {
@@ -437,10 +476,40 @@ function autoLayout() {
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
+  position: relative;
   
   &:hover {
     background: #f1f5f9;
     color: #1e293b;
+  }
+  
+  &[title]:hover::before {
+    content: attr(title);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 10px;
+    background: #1e293b;
+    color: white;
+    font-size: 12px;
+    font-weight: 400;
+    white-space: nowrap;
+    border-radius: 6px;
+    z-index: 1001;
+    pointer-events: none;
+  }
+  
+  &[title]:hover::after {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #1e293b;
+    z-index: 1001;
+    pointer-events: none;
   }
 }
 
