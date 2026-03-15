@@ -176,11 +176,37 @@ onMounted(async () => {
   } else {
     workflowStore.createWorkflow()
   }
+  
+  document.addEventListener('keydown', handleKeyDown)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('keydown', handleKeyDown)
 })
+
+function handleKeyDown(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+    e.preventDefault()
+    if (e.shiftKey) {
+      workflowStore.redo()
+    } else {
+      workflowStore.undo()
+    }
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'y') {
+    e.preventDefault()
+    workflowStore.redo()
+  }
+  
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (canvasStore.selectedEdgeId) {
+      e.preventDefault()
+      workflowStore.deleteEdge(canvasStore.selectedEdgeId)
+      canvasStore.clearSelection()
+    }
+  }
+}
 
 function formatTime(timestamp?: number): string {
   if (!timestamp) return '-'
@@ -253,9 +279,11 @@ function fitCanvas() {
 }
 
 function undo() {
+  workflowStore.undo()
 }
 
 function redo() {
+  workflowStore.redo()
 }
 
 function handleDragStart(e: DragEvent, nodeType: NodeType) {

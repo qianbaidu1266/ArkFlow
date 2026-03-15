@@ -5,7 +5,6 @@
     </div>
     <div class="sidebar-content">
       <div v-if="selectedNode" class="property-panel">
-        <!-- 节点基本信息 -->
         <div class="property-group">
           <label class="property-label">节点名称</label>
           <input 
@@ -21,7 +20,6 @@
           <div class="property-static">{{ nodeTypeName }}</div>
         </div>
         
-        <!-- 节点配置 -->
         <template v-for="config in nodeConfigs" :key="config.name">
           <div class="property-group">
             <label class="property-label">
@@ -29,7 +27,6 @@
               <span v-if="config.required" class="required">*</span>
             </label>
             
-            <!-- 字符串输入 -->
             <input
               v-if="config.type === 'string'"
               v-model="nodeConfig[config.name]"
@@ -39,7 +36,6 @@
               @change="updateConfig"
             />
             
-            <!-- 数字输入 -->
             <input
               v-else-if="config.type === 'number'"
               v-model.number="nodeConfig[config.name]"
@@ -49,7 +45,6 @@
               @change="updateConfig"
             />
             
-            <!-- 文本域 -->
             <textarea
               v-else-if="config.type === 'textarea'"
               v-model="nodeConfig[config.name]"
@@ -59,7 +54,6 @@
               @change="updateConfig"
             ></textarea>
             
-            <!-- 下拉选择 -->
             <select
               v-else-if="config.type === 'select'"
               v-model="nodeConfig[config.name]"
@@ -75,7 +69,6 @@
               </option>
             </select>
             
-            <!-- JSON输入 -->
             <textarea
               v-else-if="config.type === 'json'"
               v-model="jsonValues[config.name]"
@@ -85,7 +78,6 @@
               @change="updateJsonConfig(config.name)"
             ></textarea>
             
-            <!-- 布尔值 -->
             <label v-else-if="config.type === 'boolean'" class="checkbox-label">
               <input
                 v-model="nodeConfig[config.name]"
@@ -95,7 +87,6 @@
               {{ config.description }}
             </label>
             
-            <!-- 数组 -->
             <div v-else-if="config.type === 'array'" class="array-editor">
               <div 
                 v-for="(item, index) in (nodeConfig[config.name] || [])" 
@@ -119,7 +110,6 @@
           </div>
         </template>
         
-        <!-- 删除按钮 -->
         <div class="property-actions">
           <button class="btn-delete" @click="deleteNode">
             删除节点
@@ -170,7 +160,6 @@ const nodeConfig = computed({
   }
 })
 
-// 初始化JSON值
 watch(selectedNode, (node) => {
   if (node) {
     nodeConfigs.value.forEach(config => {
@@ -199,7 +188,6 @@ function updateJsonConfig(name: string) {
     nodeConfig.value[name] = value
     updateConfig()
   } catch (e) {
-    // JSON解析错误，不更新
   }
 }
 

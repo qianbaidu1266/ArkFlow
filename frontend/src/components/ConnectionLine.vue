@@ -2,8 +2,15 @@
   <g 
     class="connection-line"
     :class="{ selected }"
-    @click="$emit('click', $event)"
+    @click.stop="$emit('click', $event)"
   >
+    <path
+      :d="pathData"
+      fill="none"
+      stroke="transparent"
+      stroke-width="20"
+      class="hit-area"
+    />
     <path
       :d="pathData"
       fill="none"
@@ -11,7 +18,6 @@
       stroke-width="2"
       :class="{ selected }"
     />
-    <!-- 箭头 -->
     <polygon
       :points="arrowPoints"
       fill="#94a3b8"
@@ -76,8 +82,13 @@ function generateArrowPoints(x: number, y: number): string {
 .connection-line {
   cursor: pointer;
   
-  path {
+  .hit-area {
+    pointer-events: stroke;
+  }
+  
+  path:not(.hit-area) {
     transition: stroke 0.2s, stroke-width 0.2s;
+    pointer-events: none;
     
     &:hover {
       stroke: #3b82f6;
@@ -92,8 +103,20 @@ function generateArrowPoints(x: number, y: number): string {
   
   polygon {
     transition: fill 0.2s;
+    pointer-events: none;
     
-    &:hover, &.selected {
+    &.selected {
+      fill: #3b82f6;
+    }
+  }
+  
+  &:hover {
+    path:not(.hit-area) {
+      stroke: #3b82f6;
+      stroke-width: 3;
+    }
+    
+    polygon {
       fill: #3b82f6;
     }
   }

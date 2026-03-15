@@ -243,11 +243,16 @@ function handlePortMouseUp(e: MouseEvent, node: WorkflowNodeType) {
 // 选择边
 function selectEdge(edgeId: string, e: MouseEvent) {
   e.stopPropagation()
+  e.preventDefault()
   canvasStore.selectEdge(edgeId)
 }
 
 // 处理画布点击
-function handleCanvasClick() {
+function handleCanvasClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (target.closest('.connection-line') || target.closest('.workflow-node')) {
+    return
+  }
   canvasStore.clearSelection()
 }
 

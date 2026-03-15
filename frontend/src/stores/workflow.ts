@@ -5,20 +5,64 @@ import type { Workflow, WorkflowNode, WorkflowEdge, Position, NodeType } from '@
 import { workflowApi } from '@/services/api'
 
 export const useWorkflowStore = defineStore('workflow', () => {
-  // State
   const currentWorkflow = ref<Workflow | null>(null)
   const workflows = ref<Workflow[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   
-  // Getters
+  const history = ref<string[]>([])
+  const historyIndex = ref(-1)
+  const maxHistory = 50
+  
   const nodes = computed(() => currentWorkflow.value?.nodes || {})
   const edges = computed(() => currentWorkflow.value?.edges || [])
   const nodeList = computed(() => Object.values(nodes.value))
+  const canUndo = computed(() => historyIndex.value > 0)
+  const canRedo = computed(() => historyIndex.value < history.value.length - 1)
   
-  // Actions
+  function pushHistory() {
+    if (!currentWorkflow.value) return
+    
+    const snapshot = JSON.stringify(currentWorkflow.value)
+    
+    if (historyIndex.value < history.value.length - 1) {
+      history.value = history.value.slice(0, historyIndex.value + 1)
+    }
+    
+    history.value.push(snapshot)
+    
+    if (history.value.length > maxHistory) {
+      history.value.shift()
+    } else {
+      historyIndex.value++
+    }
+  }
   
-  // 创建新工作流
+  function undo() {
+    if (!canUndo.value) return
+    
+    historyIndex.value--
+    const snapshot = history.value[historyIndex.value]
+    if (snapshot) {
+      currentWorkflow.value = JSON.parse(snapshot)
+    }
+  }
+  
+  function redo() {
+    if (!canRedo.value) return
+    
+    historyIndex.value++
+    const snapshot = history.value[historyIndex.value]
+    if (snapshot) {
+      currentWorkflow.value = JSON.parse(snapshot)
+    }
+  }
+  
+  function clearHistory() {
+    history.value = []
+    historyIndex.value = -1
+  }
+  
   function createWorkflow(name: string = 'New Workflow') {
     const id = uuidv4()
     const startNodeId = 'start_' + uuidv4().slice(0, 8)
@@ -41,10 +85,12 @@ export const useWorkflowStore = defineStore('workflow', () => {
       updatedAt: Date.now()
     }
     
+    clearHistory()
+    pushHistory()
+    
     return currentWorkflow.value
   }
   
-  // 加载工作流
   async function loadWorkflow(id: string) {
     isLoading.value = true
     error.value = null
@@ -52,7 +98,6 @@ export const useWorkflowStore = defineStore('workflow', () => {
     try {
       const workflow = await workflowApi.get(id)
       
-      // 确保边有 id 字段
       if (workflow.edges) {
         workflow.edges = workflow.edges.map(edge => ({
           ...edge,
@@ -61,6 +106,8 @@ export const useWorkflowStore = defineStore('workflow', () => {
       }
       
       currentWorkflow.value = workflow
+      clearHistory()
+      pushHistory()
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load workflow'
       throw err
@@ -69,7 +116,6 @@ export const useWorkflowStore = defineStore('workflow', () => {
     }
   }
   
-  // 保存工作流
   async function saveWorkflow() {
     if (!currentWorkflow.value) return
     
@@ -87,7 +133,6 @@ export const useWorkflowStore = defineStore('workflow', () => {
     }
   }
   
-  // 添加节点
   function addNode(type: NodeType, position: Position, name?: string) {
     if (!currentWorkflow.value) return null
     
@@ -115,34 +160,30 @@ export const useWorkflowStore = defineStore('workflow', () => {
     
     currentWorkflow.value.nodes[id] = node
     currentWorkflow.value.updatedAt = Date.now()
+    pushHistory()
     
     return node
   }
   
-  // 更新节点
   function updateNode(id: string, updates: Partial<WorkflowNode>) {
     if (!currentWorkflow.value || !currentWorkflow.value.nodes[id]) return
     
     Object.assign(currentWorkflow.value.nodes[id], updates)
     currentWorkflow.value.updatedAt = Date.now()
+    pushHistory()
   }
   
-  // 删除节点
   function deleteNode(id: string) {
     if (!currentWorkflow.value) return
     
-    // 删除节点
     delete currentWorkflow.value.nodes[id]
-    
-    // 删除相关的边
     currentWorkflow.value.edges = currentWorkflow.value.edges.filter(
       edge => edge.from !== id && edge.to !== id
     )
-    
     currentWorkflow.value.updatedAt = Date.now()
+    pushHistory()
   }
   
-  // 复制节点
   function duplicateNode(nodeId: string): WorkflowNode | null {
     if (!currentWorkflow.value || !currentWorkflow.value.nodes[nodeId]) return null
     
@@ -153,7 +194,7 @@ export const useWorkflowStore = defineStore('workflow', () => {
       id: newId,
       name: `${sourceNode.name} (复制)`,
       type: sourceNode.type,
-      config: JSON.parse(JSON.stringify(sourceNode.config)), // 深拷贝配置
+      config: JSON.parse(JSON.stringify(sourceNode.config)),
       position: {
         x: sourceNode.position.x + 40,
         y: sourceNode.position.y + 40
@@ -162,15 +203,14 @@ export const useWorkflowStore = defineStore('workflow', () => {
     
     currentWorkflow.value.nodes[newId] = newNode
     currentWorkflow.value.updatedAt = Date.now()
+    pushHistory()
     
     return newNode
   }
   
-  // 添加边
   function addEdge(from: string, to: string, type: 'normal' | 'conditional' = 'normal') {
     if (!currentWorkflow.value) return null
     
-    // 检查是否已存在
     const exists = currentWorkflow.value.edges.some(
       edge => edge.from === from && edge.to === to
     )
@@ -186,22 +226,21 @@ export const useWorkflowStore = defineStore('workflow', () => {
     
     currentWorkflow.value.edges.push(edge)
     currentWorkflow.value.updatedAt = Date.now()
+    pushHistory()
     
     return edge
   }
   
-  // 删除边
   function deleteEdge(id: string) {
     if (!currentWorkflow.value) return
     
     currentWorkflow.value.edges = currentWorkflow.value.edges.filter(
       edge => edge.id !== id
     )
-    
     currentWorkflow.value.updatedAt = Date.now()
+    pushHistory()
   }
   
-  // 更新节点配置
   function updateNodeConfig(nodeId: string, config: Record<string, any>) {
     if (!currentWorkflow.value || !currentWorkflow.value.nodes[nodeId]) return
     
@@ -210,15 +249,15 @@ export const useWorkflowStore = defineStore('workflow', () => {
       ...config
     }
     currentWorkflow.value.updatedAt = Date.now()
+    pushHistory()
   }
   
-  // 设置入口点
   function setEntryPoint(nodeId: string) {
     if (!currentWorkflow.value) return
     currentWorkflow.value.entryPoint = nodeId
+    pushHistory()
   }
   
-  // 执行工作流
   async function execute(inputs: Record<string, any> = {}) {
     if (!currentWorkflow.value) return null
     
@@ -236,7 +275,6 @@ export const useWorkflowStore = defineStore('workflow', () => {
     }
   }
   
-  // 获取所有工作流列表
   async function fetchWorkflows() {
     isLoading.value = true
     
@@ -250,18 +288,15 @@ export const useWorkflowStore = defineStore('workflow', () => {
   }
   
   return {
-    // State
     currentWorkflow,
     workflows,
     isLoading,
     error,
-    
-    // Getters
+    canUndo,
+    canRedo,
     nodes,
     edges,
     nodeList,
-    
-    // Actions
     createWorkflow,
     loadWorkflow,
     saveWorkflow,
@@ -274,6 +309,9 @@ export const useWorkflowStore = defineStore('workflow', () => {
     updateNodeConfig,
     setEntryPoint,
     execute,
-    fetchWorkflows
+    fetchWorkflows,
+    undo,
+    redo,
+    pushHistory
   }
 })
