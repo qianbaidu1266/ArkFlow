@@ -1,0 +1,105 @@
+{
+  "id": "rag_workflow_example",
+  "name": "RAG 知识问答工作流",
+  "description": "使用知识库检索增强的问答工作流",
+  "entryPoint": "start_1",
+  "nodes": {
+    "start_1": {
+      "id": "start_1",
+      "name": "开始",
+      "type": "start",
+      "config": {
+        "inputVariables": [
+          {
+            "name": "query",
+            "type": "string",
+            "description": "用户问题",
+            "required": true
+          }
+        ]
+      },
+      "position": { "x": 100, "y": 300 }
+    },
+    "knowledge_1": {
+      "id": "knowledge_1",
+      "name": "知识检索",
+      "type": "knowledge_retrieval",
+      "config": {
+        "knowledgeBaseId": "default_kb",
+        "queryVariable": "query",
+        "topK": 5,
+        "scoreThreshold": 0.7,
+        "searchType": "similarity",
+        "outputKey": "retrieved_context"
+      },
+      "position": { "x": 400, "y": 300 }
+    },
+    "template_1": {
+      "id": "template_1",
+      "name": "构建提示词",
+      "type": "template",
+      "config": {
+        "template": "基于以下上下文回答问题：\n\n上下文：\n{{retrieved_context}}\n\n问题：{{query}}\n\n请根据上下文提供准确的回答。",
+        "outputKey": "prompt"
+      },
+      "position": { "x": 700, "y": 300 }
+    },
+    "llm_1": {
+      "id": "llm_1",
+      "name": "LLM回答",
+      "type": "llm",
+      "config": {
+        "systemPrompt": "你是一个基于知识库的智能助手，请根据提供的上下文回答用户问题。",
+        "userPrompt": "{{prompt}}",
+        "model": "gpt-3.5-turbo",
+        "temperature": 0.7,
+        "maxTokens": 2000,
+        "outputKey": "answer"
+      },
+      "position": { "x": 1000, "y": 300 }
+    },
+    "end_1": {
+      "id": "end_1",
+      "name": "结束",
+      "type": "end",
+      "config": {
+        "outputVariables": [
+          {
+            "name": "response",
+            "sourceVariable": "answer",
+            "type": "string"
+          }
+        ]
+      },
+      "position": { "x": 1300, "y": 300 }
+    }
+  },
+  "edges": [
+    {
+      "id": "edge_1",
+      "from": "start_1",
+      "to": "knowledge_1",
+      "type": "normal"
+    },
+    {
+      "id": "edge_2",
+      "from": "knowledge_1",
+      "to": "template_1",
+      "type": "normal"
+    },
+    {
+      "id": "edge_3",
+      "from": "template_1",
+      "to": "llm_1",
+      "type": "normal"
+    },
+    {
+      "id": "edge_4",
+      "from": "llm_1",
+      "to": "end_1",
+      "type": "normal"
+    }
+  ],
+  "createdAt": 1705315200000,
+  "updatedAt": 1705315200000
+}

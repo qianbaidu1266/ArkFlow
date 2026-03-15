@@ -1,0 +1,128 @@
+{
+  "id": "agent_workflow_example",
+  "name": "Agent 工具调用工作流",
+  "description": "支持工具调用的智能体工作流",
+  "entryPoint": "start_1",
+  "nodes": {
+    "start_1": {
+      "id": "start_1",
+      "name": "开始",
+      "type": "start",
+      "config": {
+        "inputVariables": [
+          {
+            "name": "user_input",
+            "type": "string",
+            "description": "用户输入",
+            "required": true
+          }
+        ]
+      },
+      "position": { "x": 100, "y": 300 }
+    },
+    "agent_1": {
+      "id": "agent_1",
+      "name": "智能体",
+      "type": "agent",
+      "config": {
+        "systemPrompt": "你是一个智能助手，可以使用以下工具：\n1. search - 搜索信息\n2. calculator - 计算数值\n3. weather - 查询天气",
+        "userPrompt": "{{user_input}}",
+        "maxIterations": 5,
+        "tools": [
+          {
+            "name": "search",
+            "description": "搜索网络信息"
+          },
+          {
+            "name": "calculator",
+            "description": "执行数学计算"
+          }
+        ],
+        "outputKey": "agent_response"
+      },
+      "position": { "x": 400, "y": 300 }
+    },
+    "condition_1": {
+      "id": "condition_1",
+      "name": "需要搜索？",
+      "type": "condition",
+      "config": {
+        "conditionType": "expression",
+        "expression": "agent_response.includes('需要搜索')"
+      },
+      "position": { "x": 700, "y": 300 }
+    },
+    "http_1": {
+      "id": "http_1",
+      "name": "搜索API",
+      "type": "http",
+      "config": {
+        "url": "https://api.example.com/search?q={{user_input}}",
+        "method": "GET",
+        "outputKey": "search_result"
+      },
+      "position": { "x": 700, "y": 500 }
+    },
+    "template_1": {
+      "id": "template_1",
+      "name": "整合结果",
+      "type": "template",
+      "config": {
+        "template": "Agent回答：{{agent_response}}\n\n搜索结果：{{search_result}}",
+        "outputKey": "final_response"
+      },
+      "position": { "x": 1000, "y": 400 }
+    },
+    "end_1": {
+      "id": "end_1",
+      "name": "结束",
+      "type": "end",
+      "config": {
+        "outputVariables": [
+          {
+            "name": "response",
+            "sourceVariable": "final_response",
+            "type": "string"
+          }
+        ]
+      },
+      "position": { "x": 1300, "y": 400 }
+    }
+  },
+  "edges": [
+    {
+      "id": "edge_1",
+      "from": "start_1",
+      "to": "agent_1",
+      "type": "normal"
+    },
+    {
+      "id": "edge_2",
+      "from": "agent_1",
+      "to": "condition_1",
+      "type": "normal"
+    },
+    {
+      "id": "edge_3",
+      "from": "condition_1",
+      "to": "http_1",
+      "type": "conditional",
+      "conditions": { "true": "http_1" },
+      "defaultTarget": "template_1"
+    },
+    {
+      "id": "edge_4",
+      "from": "http_1",
+      "to": "template_1",
+      "type": "normal"
+    },
+    {
+      "id": "edge_5",
+      "from": "template_1",
+      "to": "end_1",
+      "type": "normal"
+    }
+  ],
+  "createdAt": 1705315200000,
+  "updatedAt": 1705315200000
+}
