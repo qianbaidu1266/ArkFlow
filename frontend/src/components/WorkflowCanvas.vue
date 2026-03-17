@@ -157,9 +157,11 @@ function handleMouseMove(e: MouseEvent) {
     canvasStore.pan(deltaX, deltaY)
     canvasStore.dragStart = { x: e.clientX, y: e.clientY }
   } else if (canvasStore.isConnecting) {
-    // 更新拖拽线终点
-    const canvasPos = canvasStore.screenToCanvas(e.clientX, e.clientY)
-    canvasStore.dragStart = canvasPos
+    const rect = canvasRef.value?.getBoundingClientRect()
+    if (rect) {
+      const canvasPos = canvasStore.screenToCanvas(e.clientX - rect.left, e.clientY - rect.top)
+      canvasStore.dragStart = canvasPos
+    }
   }
 }
 
@@ -227,6 +229,11 @@ function handleNodeMouseDown(e: MouseEvent, node: WorkflowNodeType) {
 // 处理连接点鼠标按下
 function handlePortMouseDown(e: MouseEvent, node: WorkflowNodeType) {
   e.stopPropagation()
+  const rect = canvasRef.value?.getBoundingClientRect()
+  if (rect) {
+    const canvasPos = canvasStore.screenToCanvas(e.clientX - rect.left, e.clientY - rect.top)
+    canvasStore.dragStart = canvasPos
+  }
   canvasStore.startConnecting(node.id)
 }
 
