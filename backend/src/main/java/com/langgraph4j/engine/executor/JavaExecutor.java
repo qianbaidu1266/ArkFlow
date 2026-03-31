@@ -9,8 +9,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Slf4j
 public class JavaExecutor implements CodeExecutor {
@@ -96,6 +94,8 @@ public class JavaExecutor implements CodeExecutor {
         
         sb.append("import java.util.*;\n");
         sb.append("import java.math.*;\n");
+        sb.append("import java.time.*;\n");
+        sb.append("import java.text.*;\n");
         sb.append("import com.fasterxml.jackson.databind.*;\n\n");
         sb.append("public class ").append(className).append(" {\n");
         sb.append("    private static final ObjectMapper mapper = new ObjectMapper();\n\n");
@@ -124,9 +124,15 @@ public class JavaExecutor implements CodeExecutor {
         
         sb.append("    }\n");
         sb.append("    \n");
-        sb.append("    // Helper methods\n");
+        sb.append("    // ===== Helper methods =====\n");
+        sb.append("    \n");
         sb.append("    private static void print(Object obj) {\n");
         sb.append("        System.out.println(obj);\n");
+        sb.append("    }\n");
+        sb.append("    \n");
+        sb.append("    private static void sleep(long millis) {\n");
+        sb.append("        try { Thread.sleep(millis); }\n");
+        sb.append("        catch (InterruptedException e) { Thread.currentThread().interrupt(); }\n");
         sb.append("    }\n");
         sb.append("    \n");
         sb.append("    private static String toJson(Object obj) {\n");
@@ -137,6 +143,14 @@ public class JavaExecutor implements CodeExecutor {
         sb.append("    private static Object fromJson(String json) {\n");
         sb.append("        try { return mapper.readValue(json, Object.class); }\n");
         sb.append("        catch (Exception e) { return null; }\n");
+        sb.append("    }\n");
+        sb.append("    \n");
+        sb.append("    private static String format(String pattern, Object... args) {\n");
+        sb.append("        return String.format(pattern, args);\n");
+        sb.append("    }\n");
+        sb.append("    \n");
+        sb.append("    private static long currentTimeMillis() {\n");
+        sb.append("        return System.currentTimeMillis();\n");
         sb.append("    }\n");
         sb.append("}\n");
         
