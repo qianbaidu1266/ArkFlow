@@ -9,6 +9,7 @@ import com.langgraph4j.engine.repository.WorkflowRepository;
 import com.langgraph4j.engine.state.CheckpointManager;
 import com.langgraph4j.engine.state.GraphState;
 import com.langgraph4j.engine.state.SnapshotManager;
+import com.langgraph4j.engine.websocket.ExecutionEventBus;
 import io.vertx.core.Vertx;
 import lombok.Builder;
 import lombok.Data;
@@ -39,6 +40,7 @@ public class WorkflowEngine {
     private EmbeddingClient embeddingClient;
     private KnowledgeBase knowledgeBase;
     private WorkflowRepository repository;
+    private ExecutionEventBus eventBus;
     
     public WorkflowEngine() {
         this.vertx = Vertx.vertx();
@@ -142,11 +144,17 @@ public class WorkflowEngine {
             );
         }
         
-        String executionId = generateExecutionId();
+        String executionId = (config != null && config.getExecutionId() != null) 
+            ? config.getExecutionId() 
+            : generateExecutionId();
         log.info("Starting workflow execution: {} (workflow: {})", executionId, workflowId);
         
         if (snapshotManager != null) {
             snapshotManager.createExecution(executionId, workflowId, input.getAll());
+        }
+        
+        if (eventBus != null) {
+            eventBus.publishExecutionStarted(executionId, workflowId);
         }
         
         ExecutionContext context = buildExecutionContext(executionId, workflowId, config);
@@ -158,6 +166,11 @@ public class WorkflowEngine {
         return workflow.execute(input, context)
             .thenApply(output -> {
                 long endTime = System.currentTimeMillis();
+                long duration = endTime - startTime;
+                
+                if (eventBus != null) {
+                    eventBus.publishExecutionCompleted(executionId, workflowId, true, duration);
+                }
                 
                 ExecutionResult result = ExecutionResult.builder()
                     .executionId(executionId)
@@ -166,7 +179,7 @@ public class WorkflowEngine {
                     .output(output)
                     .startTime(startTime)
                     .endTime(endTime)
-                    .duration(endTime - startTime)
+                    .duration(duration)
                     .build();
                 
                 executionResults.put(executionId, result);
@@ -176,6 +189,11 @@ public class WorkflowEngine {
             })
             .exceptionally(e -> {
                 long endTime = System.currentTimeMillis();
+                long duration = endTime - startTime;
+                
+                if (eventBus != null) {
+                    eventBus.publishExecutionCompleted(executionId, workflowId, false, duration);
+                }
                 
                 ExecutionResult result = ExecutionResult.builder()
                     .executionId(executionId)
@@ -184,7 +202,7 @@ public class WorkflowEngine {
                     .error(e.getMessage())
                     .startTime(startTime)
                     .endTime(endTime)
-                    .duration(endTime - startTime)
+                    .duration(duration)
                     .build();
                 
                 executionResults.put(executionId, result);
@@ -257,6 +275,10 @@ public class WorkflowEngine {
             builder.knowledgeBase(knowledgeBase);
         }
         
+        if (eventBus != null) {
+            builder.eventBus(eventBus);
+        }
+        
         if (config != null && config.getVariables() != null) {
             builder.variables(config.getVariables());
         }
@@ -300,6 +322,14 @@ public class WorkflowEngine {
         this.knowledgeBase = knowledgeBase;
     }
     
+    public void setEventBus(ExecutionEventBus eventBus) {
+        this.eventBus = eventBus;
+    }
+    
+    public ExecutionEventBus getEventBus() {
+        return eventBus;
+    }
+    
     // Getters for dependencies
     public EmbeddingClient getEmbeddingClient() {
         return embeddingClient;
@@ -338,6 +368,7 @@ public class WorkflowEngine {
     @Data
     @Builder
     public static class ExecutionConfig {
+        private String executionId;
         private Map<String, Object> variables;
         private Integer timeout;
         private Boolean enableCheckpoint;

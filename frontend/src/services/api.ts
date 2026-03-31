@@ -43,7 +43,8 @@ export const workflowApi = {
   async execute(id: string, inputs: Record<string, any>, config?: Record<string, any>): Promise<ExecutionResult> {
     const response = await api.post(`/workflows/${id}/execute`, {
       inputs,
-      config
+      config,
+      executionId: config?.executionId
     })
     return response.data
   },

@@ -9,6 +9,7 @@ import com.langgraph4j.engine.node.NodeFactory;
 import com.langgraph4j.engine.state.GraphState;
 import com.langgraph4j.engine.state.NodeExecutionSnapshot;
 import com.langgraph4j.engine.state.SnapshotManager;
+import com.langgraph4j.engine.websocket.ExecutionEventBus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpServer;
@@ -29,6 +30,7 @@ public class WorkflowApi extends AbstractVerticle {
     private final ObjectMapper objectMapper;
     private final int port;
     private SnapshotManager snapshotManager;
+    private ExecutionEventBus eventBus;
     
     public WorkflowApi(WorkflowEngine engine, int port) {
         this.engine = engine;
@@ -38,6 +40,10 @@ public class WorkflowApi extends AbstractVerticle {
     
     public void setSnapshotManager(SnapshotManager snapshotManager) {
         this.snapshotManager = snapshotManager;
+    }
+    
+    public void setEventBus(ExecutionEventBus eventBus) {
+        this.eventBus = eventBus;
     }
     
     @Override
@@ -75,7 +81,32 @@ public class WorkflowApi extends AbstractVerticle {
         
         router.get("/api/node-types").handler(this::listNodeTypes);
         
-        server.requestHandler(router).listen(port, result -> {
+        server.requestHandler(router);
+        
+        server.webSocketHandler(ws -> {
+            String path = ws.path();
+            
+            if (path.startsWith("/ws/execution/")) {
+                String executionId = path.substring("/ws/execution/".length());
+                
+                if (eventBus != null) {
+                    eventBus.addConnection(executionId, ws);
+                    
+                    ws.closeHandler(v -> {
+                        eventBus.removeConnection(executionId);
+                    });
+                    
+                    ws.exceptionHandler(e -> {
+                        log.error("WebSocket error for execution: {}", executionId, e);
+                        eventBus.removeConnection(executionId);
+                    });
+                }
+            } else {
+                ws.reject();
+            }
+        });
+        
+        server.listen(port, result -> {
             if (result.succeeded()) {
                 log.info("Workflow API server started on port {}", port);
                 startPromise.complete();
@@ -233,6 +264,12 @@ public class WorkflowApi extends AbstractVerticle {
                 });
             }
             
+            // 获取可选的 executionId
+            String executionId = null;
+            if (body != null && body.containsKey("executionId")) {
+                executionId = body.getString("executionId");
+            }
+            
             // 执行配置
             WorkflowEngine.ExecutionConfig config = null;
             if (body != null && body.containsKey("config")) {
@@ -240,6 +277,11 @@ public class WorkflowApi extends AbstractVerticle {
                 config = WorkflowEngine.ExecutionConfig.builder()
                     .timeout(configJson.getInteger("timeout", 30000))
                     .enableCheckpoint(configJson.getBoolean("enableCheckpoint", true))
+                    .executionId(executionId)
+                    .build();
+            } else if (executionId != null) {
+                config = WorkflowEngine.ExecutionConfig.builder()
+                    .executionId(executionId)
                     .build();
             }
             

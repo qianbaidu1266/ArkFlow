@@ -3,12 +3,22 @@
     class="workflow-node"
     :class="[
       `node-${node.type}`,
-      { selected }
+      { selected },
+      { 'status-running': status === 'RUNNING' },
+      { 'status-success': status === 'SUCCESS' },
+      { 'status-failed': status === 'FAILED' },
+      { 'is-executing': isExecuting }
     ]"
     :style="nodeStyle"
     @mousedown.stop="$emit('mousedown', $event)"
     @click.stop
   >
+    <!-- 执行状态指示器 -->
+    <div v-if="status" class="status-indicator" :class="statusClass">
+      <span v-if="status === 'RUNNING'" class="status-icon spinning">⟳</span>
+      <span v-else-if="status === 'SUCCESS'" class="status-icon">✓</span>
+      <span v-else-if="status === 'FAILED'" class="status-icon">✗</span>
+    </div>
     <!-- 输入连接点 -->
     <div 
       v-if="node.type !== 'start'"
@@ -81,6 +91,8 @@ import { getNodeTypeInfo } from '@/config/nodeTypes'
 const props = defineProps<{
   node: WorkflowNodeType
   selected: boolean
+  status?: string
+  isExecuting?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -108,6 +120,13 @@ watch(() => props.selected, (newVal, oldVal) => {
 })
 
 const nodeTypeInfo = computed(() => getNodeTypeInfo(props.node.type))
+
+const statusClass = computed(() => {
+  if (props.status === 'RUNNING') return 'status-running'
+  if (props.status === 'SUCCESS') return 'status-success'
+  if (props.status === 'FAILED') return 'status-failed'
+  return ''
+})
 
 const nodeStyle = computed(() => ({
   left: `${props.node.position.x}px`,
@@ -383,6 +402,72 @@ export default {
     right: -6px;
     top: 50%;
     transform: translateY(-50%);
+  }
+}
+
+/* 执行状态样式 */
+.status-indicator {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  color: white;
+  z-index: 20;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  
+  &.status-running {
+    background: #3b82f6;
+  }
+  
+  &.status-success {
+    background: #10b981;
+  }
+  
+  &.status-failed {
+    background: #ef4444;
+  }
+}
+
+.status-icon {
+  display: inline-block;
+  
+  &.spinning {
+    animation: spin 1s linear infinite;
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 节点状态边框 */
+.workflow-node.status-running {
+  box-shadow: 0 0 0 2px #3b82f6, 0 4px 16px rgba(59, 130, 246, 0.3);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.workflow-node.status-success {
+  box-shadow: 0 0 0 2px #10b981, 0 4px 16px rgba(16, 185, 129, 0.3);
+}
+
+.workflow-node.status-failed {
+  box-shadow: 0 0 0 2px #ef4444, 0 4px 16px rgba(239, 68, 68, 0.3);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 2px #3b82f6, 0 4px 16px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 4px #3b82f6, 0 4px 20px rgba(59, 130, 246, 0.5);
   }
 }
 </style>

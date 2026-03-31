@@ -31,6 +31,15 @@ public abstract class Node {
         SnapshotManager snapshotManager = context.getSnapshotManager();
         NodeExecutionSnapshot snapshot = null;
         
+        if (context.getEventBus() != null) {
+            context.getEventBus().publishNodeStarted(
+                context.getExecutionId(),
+                id,
+                name,
+                type.getCode()
+            );
+        }
+        
         if (snapshotManager != null) {
             snapshot = NodeExecutionSnapshot.create(
                 context.getExecutionId(),
@@ -45,9 +54,24 @@ public abstract class Node {
         }
         
         final NodeExecutionSnapshot finalSnapshot = snapshot;
+        final long startTime = System.currentTimeMillis();
         
         return doExecute(state, context)
             .thenApply(output -> {
+                long duration = System.currentTimeMillis() - startTime;
+                
+                if (context.getEventBus() != null) {
+                    context.getEventBus().publishNodeCompleted(
+                        context.getExecutionId(),
+                        id,
+                        name,
+                        type.getCode(),
+                        "SUCCESS",
+                        duration,
+                        extractOutputs(output)
+                    );
+                }
+                
                 if (snapshotManager != null && finalSnapshot != null) {
                     Map<String, Object> outputs = extractOutputs(output);
                     Map<String, Object> metadata = buildMetadata(state, output, context);
@@ -57,6 +81,18 @@ public abstract class Node {
                 return output;
             })
             .exceptionally(e -> {
+                long duration = System.currentTimeMillis() - startTime;
+                
+                if (context.getEventBus() != null) {
+                    context.getEventBus().publishNodeFailed(
+                        context.getExecutionId(),
+                        id,
+                        name,
+                        type.getCode(),
+                        e.getMessage()
+                    );
+                }
+                
                 if (snapshotManager != null && finalSnapshot != null) {
                     finalSnapshot.markFailed(e.getMessage(), getStackTrace(e));
                     snapshotManager.updateSnapshot(finalSnapshot);

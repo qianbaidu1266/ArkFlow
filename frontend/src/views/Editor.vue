@@ -34,7 +34,10 @@
     <div class="editor-body">
       <!-- 中间画布 -->
       <div class="canvas-wrapper" :class="{ 'with-panel': canvasStore.editingNodeId }">
-        <WorkflowCanvas />
+        <WorkflowCanvas 
+          :node-statuses="nodeStatuses"
+          :executing-nodes="executingNodeIds"
+        />
       </div>
       
       <!-- 右侧属性面板 - 只在编辑节点时显示 -->
@@ -113,6 +116,9 @@
       :workflow="workflowStore.currentWorkflow"
       @close="closeExecutionModal"
       @executed="onExecuted"
+      @node-status="onNodeStatus"
+      @execution-started="onExecutionStarted"
+      @execution-completed="onExecutionCompleted"
     />
   </div>
 </template>
@@ -242,6 +248,31 @@ function closeExecutionModal() {
 
 function onExecuted(result: any) {
   console.log('Workflow executed:', result)
+}
+
+const executingNodeIds = ref<Set<string>>(new Set())
+const nodeStatuses = ref<Record<string, string>>({})
+
+function onNodeStatus(nodeId: string, status: string) {
+  console.log('Node status:', nodeId, status)
+  nodeStatuses.value[nodeId] = status
+  
+  if (status === 'RUNNING') {
+    executingNodeIds.value.add(nodeId)
+  } else {
+    executingNodeIds.value.delete(nodeId)
+  }
+}
+
+function onExecutionStarted() {
+  console.log('Execution started')
+  nodeStatuses.value = {}
+  executingNodeIds.value.clear()
+}
+
+function onExecutionCompleted(success: boolean) {
+  console.log('Execution completed:', success)
+  executingNodeIds.value.clear()
 }
 
 function zoomIn() {

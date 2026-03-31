@@ -9,6 +9,7 @@ import com.langgraph4j.engine.repository.WorkflowRepository;
 import com.langgraph4j.engine.state.JdbcSnapshotManager;
 import com.langgraph4j.engine.state.RedisCheckpointManager;
 import com.langgraph4j.engine.state.SnapshotManager;
+import com.langgraph4j.engine.websocket.ExecutionEventBus;
 import io.vertx.core.Vertx;
 import lombok.extern.slf4j.Slf4j;
 
@@ -115,10 +116,16 @@ public class LangGraph4JApplication {
         int port = Integer.parseInt(config.getProperty("server.port", "8080"));
         Vertx vertx = Vertx.vertx();
         
+        // 配置 WebSocket 事件总线
+        ExecutionEventBus eventBus = new ExecutionEventBus(vertx);
+        engine.setEventBus(eventBus);
+        log.info("WebSocket event bus configured");
+        
         WorkflowApi workflowApi = new WorkflowApi(engine, port);
         if (engine.getSnapshotManager() != null) {
             workflowApi.setSnapshotManager(engine.getSnapshotManager());
         }
+        workflowApi.setEventBus(eventBus);
         vertx.deployVerticle(workflowApi);
         
         log.info("LangGraph4J Engine started on port {}", port);

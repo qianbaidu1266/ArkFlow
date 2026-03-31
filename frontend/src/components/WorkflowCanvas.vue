@@ -2,6 +2,7 @@
   <div 
     ref="canvasRef"
     class="workflow-canvas"
+    :class="{ 'is-executing': isExecuting }"
     @mousedown="handleMouseDown"
     @mousemove="handleMouseMove"
     @mouseup="handleMouseUp"
@@ -24,6 +25,7 @@
           :from-node="workflowStore.nodes[edge.from]"
           :to-node="workflowStore.nodes[edge.to]"
           :selected="canvasStore.selectedEdgeId === edge.id"
+          :executing="isNodeExecuting(edge.from) || isNodeExecuting(edge.to)"
           @click="selectEdge(edge.id, $event)"
         />
         
@@ -44,6 +46,8 @@
         :key="node.id"
         :node="node"
         :selected="canvasStore.selectedNodeId === node.id"
+        :status="nodeStatuses[node.id]"
+        :is-executing="executingNodes.has(node.id)"
         @mousedown="handleNodeMouseDown($event, node)"
         @port-mousedown="handlePortMouseDown($event, node)"
         @port-mouseup="handlePortMouseUp($event, node)"
@@ -71,9 +75,22 @@ import type { WorkflowNode as WorkflowNodeType, Position, NodeType } from '@/typ
 import WorkflowNode from './WorkflowNode.vue'
 import ConnectionLine from './ConnectionLine.vue'
 
+const props = defineProps<{
+  nodeStatuses?: Record<string, string>
+  executingNodes?: Set<string>
+}>()
+
 const canvasRef = ref<HTMLElement>()
 const workflowStore = useWorkflowStore()
 const canvasStore = useCanvasStore()
+
+const isExecuting = computed(() => {
+  return props.executingNodes && props.executingNodes.size > 0
+})
+
+function isNodeExecuting(nodeId: string): boolean {
+  return props.executingNodes?.has(nodeId) || false
+}
 
 function deleteNode(nodeId: string) {
   workflowStore.deleteNode(nodeId)

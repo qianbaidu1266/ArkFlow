@@ -237,8 +237,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { workflowApi } from '@/services/api'
+import { createExecutionWebSocket, type ExecutionEvent, type ExecutionWebSocket } from '@/services/websocket'
 import type { Workflow, ExecutionResult } from '@/types/workflow'
 
 interface NodeSnapshot {
@@ -267,6 +268,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'executed', result: ExecutionResult): void
+  (e: 'nodeStatus', nodeId: string, status: string): void
+  (e: 'executionStarted'): void
+  (e: 'executionCompleted', success: boolean): void
 }>()
 
 const tabs = [
@@ -282,6 +286,7 @@ const isExecuting = ref(false)
 const result = ref<ExecutionResult | null>(null)
 const snapshots = ref<NodeSnapshot[]>([])
 const expandedTraces = ref<number[]>([])
+let ws: ExecutionWebSocket | null = null
 
 const inputVariables = computed(() => {
   if (!props.workflow) return []
@@ -305,6 +310,89 @@ watch(() => props.visible, (visible) => {
   }
 })
 
+onUnmounted(() => {
+  if (ws) {
+    ws.close()
+    ws = null
+  }
+})
+
+function handleWebSocketEvent(event: ExecutionEvent) {
+  console.log('WebSocket event:', event)
+  
+  switch (event.type) {
+    case 'execution_started':
+      emit('executionStarted')
+      break
+      
+    case 'node_started':
+      const existingIndex = snapshots.value.findIndex(s => s.nodeId === event.nodeId)
+      if (existingIndex === -1) {
+        snapshots.value.push({
+          id: `snapshot-${Date.now()}`,
+          nodeId: event.nodeId || '',
+          nodeType: event.nodeType || '',
+          nodeName: event.nodeName || '',
+          status: 'RUNNING',
+          startTime: event.timestamp || Date.now(),
+          endTime: 0,
+          duration: 0,
+          inputs: {},
+          outputs: {},
+          errorMessage: '',
+          metadata: {},
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0
+        })
+      }
+      emit('nodeStatus', event.nodeId || '', 'RUNNING')
+      if (activeTab.value !== 'trace') {
+        activeTab.value = 'trace'
+      }
+      break
+      
+    case 'node_completed':
+      const completedIndex = snapshots.value.findIndex(s => s.nodeId === event.nodeId)
+      if (completedIndex !== -1) {
+        const snapshot = snapshots.value[completedIndex]
+        snapshot.status = event.status || 'SUCCESS'
+        snapshot.endTime = event.timestamp || Date.now()
+        snapshot.duration = event.duration || 0
+        if (event.outputs) {
+          snapshot.outputs = event.outputs
+        }
+      }
+      emit('nodeStatus', event.nodeId || '', event.status || 'SUCCESS')
+      break
+      
+    case 'node_failed':
+      const failedIndex = snapshots.value.findIndex(s => s.nodeId === event.nodeId)
+      if (failedIndex !== -1) {
+        const snapshot = snapshots.value[failedIndex]
+        snapshot.status = 'FAILED'
+        snapshot.endTime = event.timestamp || Date.now()
+        snapshot.duration = event.duration || 0
+        snapshot.errorMessage = event.errorMessage || ''
+      }
+      emit('nodeStatus', event.nodeId || '', 'FAILED')
+      break
+      
+    case 'execution_completed':
+      isExecuting.value = false
+      emit('executionCompleted', event.success || false)
+      if (event.success) {
+        result.value = {
+          executionId: event.executionId,
+          workflowId: event.workflowId || '',
+          success: true,
+          duration: event.duration || 0
+        } as ExecutionResult
+      }
+      break
+  }
+}
+
 async function execute() {
   if (!props.workflow || !canExecute.value) return
   
@@ -312,20 +400,31 @@ async function execute() {
   result.value = null
   snapshots.value = []
   expandedTraces.value = []
-  activeTab.value = 'result'
+  activeTab.value = 'trace'
   
   try {
+    const executionId = `exec_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
+    
+    ws = createExecutionWebSocket(executionId)
+    ws.onEvent(handleWebSocketEvent)
+    
+    try {
+      await ws.connect()
+      console.log('WebSocket connected, starting execution...')
+    } catch (e) {
+      console.warn('WebSocket connection failed, continuing without real-time updates:', e)
+    }
+    
     const res = await workflowApi.execute(props.workflow.id, inputs.value, {
       enableCheckpoint: true,
-      timeout: 60000
+      timeout: 60000,
+      executionId: executionId
     })
     
     result.value = res
     emit('executed', res)
     
-    if (res.executionId) {
-      await loadSnapshots(res.executionId)
-    }
+    await loadSnapshots(res.executionId)
   } catch (e: any) {
     result.value = {
       executionId: '',

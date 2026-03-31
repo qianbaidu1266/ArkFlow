@@ -6,6 +6,7 @@ import com.langgraph4j.engine.rag.KnowledgeBase;
 import com.langgraph4j.engine.state.CheckpointManager;
 import com.langgraph4j.engine.state.GraphState;
 import com.langgraph4j.engine.state.SnapshotManager;
+import com.langgraph4j.engine.websocket.ExecutionEventBus;
 import io.vertx.core.Vertx;
 import lombok.Builder;
 import lombok.Data;
@@ -27,6 +28,7 @@ public class ExecutionContext {
     private final LLMClient llmClient;
     private final EmbeddingClient embeddingClient;
     private final KnowledgeBase knowledgeBase;
+    private final ExecutionEventBus eventBus;
     
     @Builder.Default
     private final Map<String, Object> variables = new ConcurrentHashMap<>();
@@ -106,6 +108,7 @@ public class ExecutionContext {
             .llmClient(llmClient)
             .embeddingClient(embeddingClient)
             .knowledgeBase(knowledgeBase)
+            .eventBus(eventBus)
             .variables(new ConcurrentHashMap<>(variables))
             .metadata(new ConcurrentHashMap<>(metadata))
             .build();

@@ -1,7 +1,7 @@
 <template>
   <g 
     class="connection-line"
-    :class="{ selected }"
+    :class="{ selected, executing }"
     @click.stop="$emit('click', $event)"
   >
     <path
@@ -16,12 +16,12 @@
       fill="none"
       stroke="#94a3b8"
       stroke-width="2"
-      :class="{ selected }"
+      :class="{ selected, executing }"
     />
     <polygon
       :points="arrowPoints"
       fill="#94a3b8"
-      :class="{ selected }"
+      :class="{ selected, executing }"
     />
   </g>
 </template>
@@ -35,6 +35,7 @@ const props = defineProps<{
   fromNode: WorkflowNode
   toNode: WorkflowNode
   selected: boolean
+  executing?: boolean
 }>()
 
 defineEmits<{
@@ -108,6 +109,11 @@ function generateArrowPoints(x: number, y: number): string {
     &.selected {
       fill: #3b82f6;
     }
+    
+    &.executing {
+      fill: #3b82f6;
+      animation: flow 1s linear infinite;
+    }
   }
   
   &:hover {
@@ -119,6 +125,34 @@ function generateArrowPoints(x: number, y: number): string {
     polygon {
       fill: #3b82f6;
     }
+  }
+  
+  &.executing {
+    path:not(.hit-area) {
+      stroke: #3b82f6;
+      stroke-width: 3;
+      stroke-dasharray: 10, 5;
+      animation: dash 1s linear infinite;
+    }
+    
+    polygon {
+      fill: #3b82f6;
+    }
+  }
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -15;
+  }
+}
+
+@keyframes flow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
   }
 }
 </style>
