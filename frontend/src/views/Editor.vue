@@ -107,6 +107,13 @@
         </Teleport>
       </div>
     </div>
+    
+    <ExecutionModal
+      :visible="showExecutionModal"
+      :workflow="workflowStore.currentWorkflow"
+      @close="closeExecutionModal"
+      @executed="onExecuted"
+    />
   </div>
 </template>
 
@@ -117,6 +124,7 @@ import { useWorkflowStore } from '@/stores/workflow'
 import { useCanvasStore } from '@/stores/canvas'
 import WorkflowCanvas from '@/components/WorkflowCanvas.vue'
 import PropertyPanel from '@/components/PropertyPanel.vue'
+import ExecutionModal from '@/components/ExecutionModal.vue'
 import { nodeTypeList } from '@/config/nodeTypes'
 import type { NodeType } from '@/types/workflow'
 import dagre from 'dagre'
@@ -128,6 +136,7 @@ const canvasStore = useCanvasStore()
 const showNodeMenu = ref(false)
 const menuStyle = ref({})
 const isDragging = ref(false)
+const showExecutionModal = ref(false)
 
 function toggleNodeMenu(event: MouseEvent) {
   showNodeMenu.value = !showNodeMenu.value
@@ -224,7 +233,15 @@ function saveWorkflow() {
 }
 
 function runWorkflow() {
-  workflowStore.execute()
+  showExecutionModal.value = true
+}
+
+function closeExecutionModal() {
+  showExecutionModal.value = false
+}
+
+function onExecuted(result: any) {
+  console.log('Workflow executed:', result)
 }
 
 function zoomIn() {

@@ -60,9 +60,43 @@ CREATE TABLE IF NOT EXISTS workflow_executions (
     start_time BIGINT NOT NULL,
     end_time BIGINT,
     duration BIGINT,
+    total_tokens INT DEFAULT 0,
     created_at BIGINT NOT NULL,
     INDEX idx_workflow_id (workflow_id),
     INDEX idx_status (status),
+    INDEX idx_created_at (created_at),
     CONSTRAINT fk_executions_workflow FOREIGN KEY (workflow_id) 
         REFERENCES workflows(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工作流执行记录表';
+
+-- 节点执行快照表
+CREATE TABLE IF NOT EXISTS node_execution_snapshots (
+    id VARCHAR(64) PRIMARY KEY,
+    execution_id VARCHAR(64) NOT NULL,
+    node_id VARCHAR(64) NOT NULL,
+    node_type VARCHAR(50) NOT NULL,
+    node_name VARCHAR(255),
+    status VARCHAR(20) NOT NULL,
+    start_time BIGINT,
+    end_time BIGINT,
+    duration BIGINT,
+    inputs JSON,
+    outputs JSON,
+    error_message TEXT,
+    error_stack TEXT,
+    metadata JSON,
+    prompt_tokens INT DEFAULT 0,
+    completion_tokens INT DEFAULT 0,
+    total_tokens INT DEFAULT 0,
+    inputs_storage_key VARCHAR(255),
+    outputs_storage_key VARCHAR(255),
+    inputs_size BIGINT DEFAULT 0,
+    outputs_size BIGINT DEFAULT 0,
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL,
+    INDEX idx_execution_id (execution_id),
+    INDEX idx_node_id (node_id),
+    INDEX idx_status (status),
+    CONSTRAINT fk_snapshots_execution FOREIGN KEY (execution_id) 
+        REFERENCES workflow_executions(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='节点执行快照表';

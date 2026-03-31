@@ -12,10 +12,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * LLM 节点
- * 调用大语言模型进行推理
- */
 @Slf4j
 public class LLMNode extends Node {
     
@@ -26,24 +22,20 @@ public class LLMNode extends Node {
     }
     
     @Override
-    public CompletableFuture<GraphState> execute(GraphState state, ExecutionContext context) {
+    protected CompletableFuture<GraphState> doExecute(GraphState state, ExecutionContext context) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 log.debug("Executing LLM node: {}", id);
                 
-                // 获取配置
                 String systemPrompt = getConfigValue("systemPrompt", "");
                 String userPrompt = getConfigValue("userPrompt", "");
-                String model = getConfigValue("model", null);
                 Double temperature = getConfigValue("temperature", 0.7);
                 Integer maxTokens = getConfigValue("maxTokens", 2000);
                 String outputKey = getConfigValue("outputKey", "llm_output");
                 
-                // 渲染模板
                 String renderedSystemPrompt = renderTemplate(systemPrompt, state);
                 String renderedUserPrompt = renderTemplate(userPrompt, state);
                 
-                // 构建消息列表
                 List<LLMClient.Message> messages = new ArrayList<>();
                 
                 if (!renderedSystemPrompt.isEmpty()) {
@@ -52,27 +44,25 @@ public class LLMNode extends Node {
                 
                 messages.add(LLMClient.Message.user(renderedUserPrompt));
                 
-                // 获取LLM客户端
                 LLMClient llmClient = context.getLlmClient();
                 if (llmClient == null) {
                     throw new RuntimeException("LLM client not configured");
                 }
                 
-                // 构建参数
                 LLMClient.ChatParams params = LLMClient.ChatParams.builder()
                     .temperature(temperature)
                     .maxTokens(maxTokens)
                     .build();
                 
-                // 调用LLM
                 LLMClient.ChatResponse response = llmClient.chat(messages, params).join();
                 
-                // 更新状态
                 GraphState newState = state.copy();
                 newState.set(outputKey, response.getContent());
                 newState.set(outputKey + "_model", response.getModel());
                 newState.set(outputKey + "_tokens", response.getTotalTokens());
                 newState.set(outputKey + "_finish_reason", response.getFinishReason());
+                newState.set("_llm_prompt_tokens", response.getPromptTokens());
+                newState.set("_llm_completion_tokens", response.getCompletionTokens());
                 
                 log.debug("LLM node executed successfully: {}, tokens: {}", id, response.getTotalTokens());
                 
@@ -85,9 +75,49 @@ public class LLMNode extends Node {
         });
     }
     
-    /**
-     * 渲染模板，替换变量
-     */
+    @Override
+    protected Map<String, Object> extractInputs(GraphState state) {
+        Map<String, Object> inputs = new HashMap<>();
+        
+        String systemPrompt = getConfigValue("systemPrompt", "");
+        String userPrompt = getConfigValue("userPrompt", "");
+        
+        if (!systemPrompt.isEmpty()) {
+            inputs.put("systemPrompt", renderTemplate(systemPrompt, state));
+        }
+        inputs.put("userPrompt", renderTemplate(userPrompt, state));
+        
+        return inputs;
+    }
+    
+    @Override
+    protected Map<String, Object> extractOutputs(GraphState state) {
+        Map<String, Object> outputs = new HashMap<>();
+        String outputKey = getConfigValue("outputKey", "llm_output");
+        
+        if (state.contains(outputKey)) {
+            outputs.put("content", state.get(outputKey));
+        }
+        
+        return outputs;
+    }
+    
+    @Override
+    protected Map<String, Object> buildMetadata(GraphState input, GraphState output, ExecutionContext context) {
+        Map<String, Object> metadata = new HashMap<>();
+        
+        metadata.put("model", getConfigValue("model", "default"));
+        metadata.put("temperature", getConfigValue("temperature", 0.7));
+        metadata.put("maxTokens", getConfigValue("maxTokens", 2000));
+        
+        String outputKey = getConfigValue("outputKey", "llm_output");
+        if (output.contains(outputKey + "_finish_reason")) {
+            metadata.put("finishReason", output.get(outputKey + "_finish_reason"));
+        }
+        
+        return metadata;
+    }
+    
     private String renderTemplate(String template, GraphState state) {
         if (template == null || template.isEmpty()) {
             return template;
@@ -124,7 +154,6 @@ public class LLMNode extends Node {
     public Map<String, ParameterDef> getInputParameters() {
         Map<String, ParameterDef> params = new HashMap<>();
         
-        // 从模板中提取变量
         String userPrompt = getConfigValue("userPrompt", "");
         Matcher matcher = VARIABLE_PATTERN.matcher(userPrompt);
         
@@ -153,20 +182,6 @@ public class LLMNode extends Node {
         contentDef.setDescription("LLM generated content");
         contentDef.setRequired(true);
         params.put(outputKey, contentDef);
-        
-        ParameterDef modelDef = new ParameterDef();
-        modelDef.setName(outputKey + "_model");
-        modelDef.setType("string");
-        modelDef.setDescription("Model used for generation");
-        modelDef.setRequired(false);
-        params.put(outputKey + "_model", modelDef);
-        
-        ParameterDef tokensDef = new ParameterDef();
-        tokensDef.setName(outputKey + "_tokens");
-        tokensDef.setType("integer");
-        tokensDef.setDescription("Total tokens used");
-        tokensDef.setRequired(false);
-        params.put(outputKey + "_tokens", tokensDef);
         
         return params;
     }

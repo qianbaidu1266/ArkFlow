@@ -10,14 +10,11 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-/**
- * 知识检索节点
- * 从知识库检索相关内容
- */
 @Slf4j
 public class KnowledgeRetrievalNode extends Node {
     
@@ -28,12 +25,11 @@ public class KnowledgeRetrievalNode extends Node {
     }
     
     @Override
-    public java.util.concurrent.CompletableFuture<GraphState> execute(GraphState state, ExecutionContext context) {
-        return java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+    protected CompletableFuture<GraphState> doExecute(GraphState state, ExecutionContext context) {
+        return CompletableFuture.supplyAsync(() -> {
             try {
                 log.debug("Executing Knowledge Retrieval node: {}", id);
                 
-                // 获取配置
                 String knowledgeBaseId = getConfigValue("knowledgeBaseId", null);
                 String queryTemplate = getConfigValue("query", "");
                 String queryVariable = getConfigValue("queryVariable", null);
@@ -41,9 +37,8 @@ public class KnowledgeRetrievalNode extends Node {
                 float scoreThreshold = getConfigValue("scoreThreshold", 0.7f);
                 String searchType = getConfigValue("searchType", "similarity");
                 String outputKey = getConfigValue("outputKey", "retrieved_context");
-                String outputFormat = getConfigValue("outputFormat", "text");  // text, json, chunks
+                String outputFormat = getConfigValue("outputFormat", "text");
                 
-                // 构建查询
                 String query;
                 if (queryVariable != null) {
                     Object queryValue = state.get(queryVariable);
@@ -60,31 +55,25 @@ public class KnowledgeRetrievalNode extends Node {
                     return newState;
                 }
                 
-                // 获取知识库
                 KnowledgeBase knowledgeBase = context.getKnowledgeBase();
                 if (knowledgeBase == null) {
                     throw new RuntimeException("Knowledge base not configured");
                 }
                 
-                // 构建检索配置
                 KnowledgeBase.RetrievalConfig retrievalConfig = KnowledgeBase.RetrievalConfig.builder()
                     .topK(topK)
                     .scoreThreshold(scoreThreshold)
                     .searchType(searchType)
                     .build();
                 
-                // 执行检索
                 List<KnowledgeBase.DocumentChunk> chunks = knowledgeBase.retrieve(query, retrievalConfig).join();
                 
-                // 过滤低分结果
                 chunks = chunks.stream()
                     .filter(chunk -> chunk.getScore() >= scoreThreshold)
                     .collect(Collectors.toList());
                 
-                // 格式化输出
                 Object output = formatOutput(chunks, outputFormat);
                 
-                // 更新状态
                 GraphState newState = state.copy();
                 newState.set(outputKey, output);
                 newState.set(outputKey + "_chunks", chunks);
@@ -102,9 +91,33 @@ public class KnowledgeRetrievalNode extends Node {
         });
     }
     
-    /**
-     * 格式化输出
-     */
+    @Override
+    protected Map<String, Object> extractInputs(GraphState state) {
+        Map<String, Object> inputs = new HashMap<>();
+        inputs.put("knowledgeBaseId", getConfigValue("knowledgeBaseId", ""));
+        inputs.put("topK", getConfigValue("topK", 5));
+        inputs.put("scoreThreshold", getConfigValue("scoreThreshold", 0.7f));
+        
+        String queryVariable = getConfigValue("queryVariable", null);
+        if (queryVariable != null && state.contains(queryVariable)) {
+            inputs.put("query", state.get(queryVariable));
+        }
+        return inputs;
+    }
+    
+    @Override
+    protected Map<String, Object> extractOutputs(GraphState state) {
+        Map<String, Object> outputs = new HashMap<>();
+        String outputKey = getConfigValue("outputKey", "retrieved_context");
+        if (state.contains(outputKey)) {
+            outputs.put("context", state.get(outputKey));
+        }
+        if (state.contains(outputKey + "_count")) {
+            outputs.put("count", state.get(outputKey + "_count"));
+        }
+        return outputs;
+    }
+    
     private Object formatOutput(List<KnowledgeBase.DocumentChunk> chunks, String format) {
         switch (format) {
             case "json":
@@ -137,9 +150,6 @@ public class KnowledgeRetrievalNode extends Node {
         }
     }
     
-    /**
-     * 渲染模板
-     */
     private String renderTemplate(String template, GraphState state) {
         if (template == null || template.isEmpty()) {
             return template;
@@ -194,7 +204,6 @@ public class KnowledgeRetrievalNode extends Node {
             params.put(queryVariable, def);
         }
         
-        // 从模板中提取变量
         String queryTemplate = getConfigValue("query", "");
         Matcher matcher = VARIABLE_PATTERN.matcher(queryTemplate);
         while (matcher.find()) {

@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.langgraph4j.engine.core.*;
 import com.langgraph4j.engine.node.NodeFactory;
 import com.langgraph4j.engine.state.GraphState;
+import com.langgraph4j.engine.state.NodeExecutionSnapshot;
+import com.langgraph4j.engine.state.SnapshotManager;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpServer;
@@ -20,21 +22,22 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 
-/**
- * 工作流 REST API
- * 提供工作流的CRUD和执行接口
- */
 @Slf4j
 public class WorkflowApi extends AbstractVerticle {
     
     private final WorkflowEngine engine;
     private final ObjectMapper objectMapper;
     private final int port;
+    private SnapshotManager snapshotManager;
     
     public WorkflowApi(WorkflowEngine engine, int port) {
         this.engine = engine;
         this.objectMapper = new ObjectMapper();
         this.port = port;
+    }
+    
+    public void setSnapshotManager(SnapshotManager snapshotManager) {
+        this.snapshotManager = snapshotManager;
     }
     
     @Override
@@ -67,6 +70,8 @@ public class WorkflowApi extends AbstractVerticle {
         router.post("/api/workflows/:id/execute").handler(this::executeWorkflow);
         router.get("/api/executions/:id").handler(this::getExecution);
         router.get("/api/executions/:id/checkpoints").handler(this::getCheckpoints);
+        router.get("/api/executions/:id/snapshots").handler(this::getExecutionSnapshots);
+        router.get("/api/executions/:id/snapshots/:nodeId").handler(this::getNodeSnapshot);
         
         router.get("/api/node-types").handler(this::listNodeTypes);
         
@@ -306,13 +311,141 @@ public class WorkflowApi extends AbstractVerticle {
      * 获取检查点
      */
     private void getCheckpoints(RoutingContext ctx) {
-        // 简化实现
         ObjectNode response = objectMapper.createObjectNode();
         response.putArray("checkpoints");
         
         ctx.response()
             .putHeader("Content-Type", "application/json")
             .end(response.toString());
+    }
+    
+    private void getExecutionSnapshots(RoutingContext ctx) {
+        String executionId = ctx.pathParam("id");
+        
+        if (snapshotManager == null) {
+            ctx.response()
+                .setStatusCode(503)
+                .end(new JsonObject().put("error", "Snapshot manager not configured").encode());
+            return;
+        }
+        
+        try {
+            List<NodeExecutionSnapshot> snapshots = snapshotManager.getSnapshots(executionId);
+            
+            ObjectNode response = objectMapper.createObjectNode();
+            response.put("executionId", executionId);
+            
+            ArrayNode snapshotsArray = response.putArray("snapshots");
+            for (NodeExecutionSnapshot snapshot : snapshots) {
+                ObjectNode snapshotNode = snapshotsArray.addObject();
+                snapshotNode.put("id", snapshot.getId());
+                snapshotNode.put("nodeId", snapshot.getNodeId());
+                snapshotNode.put("nodeType", snapshot.getNodeType());
+                snapshotNode.put("nodeName", snapshot.getNodeName());
+                snapshotNode.put("status", snapshot.getStatus().name());
+                snapshotNode.put("startTime", snapshot.getStartTime());
+                snapshotNode.put("endTime", snapshot.getEndTime());
+                snapshotNode.put("duration", snapshot.getDuration());
+                
+                if (snapshot.getInputs() != null) {
+                    snapshotNode.set("inputs", objectMapper.valueToTree(snapshot.getInputs()));
+                }
+                if (snapshot.getOutputs() != null) {
+                    snapshotNode.set("outputs", objectMapper.valueToTree(snapshot.getOutputs()));
+                }
+                if (snapshot.getErrorMessage() != null) {
+                    snapshotNode.put("errorMessage", snapshot.getErrorMessage());
+                }
+                if (snapshot.getMetadata() != null) {
+                    snapshotNode.set("metadata", objectMapper.valueToTree(snapshot.getMetadata()));
+                }
+                
+                snapshotNode.put("promptTokens", snapshot.getPromptTokens() != null ? snapshot.getPromptTokens() : 0);
+                snapshotNode.put("completionTokens", snapshot.getCompletionTokens() != null ? snapshot.getCompletionTokens() : 0);
+                snapshotNode.put("totalTokens", snapshot.getTotalTokens() != null ? snapshot.getTotalTokens() : 0);
+            }
+            
+            ctx.response()
+                .putHeader("Content-Type", "application/json")
+                .end(response.toString());
+                
+        } catch (Exception e) {
+            log.error("Failed to get execution snapshots", e);
+            ctx.response()
+                .setStatusCode(500)
+                .end(new JsonObject().put("error", e.getMessage()).encode());
+        }
+    }
+    
+    private void getNodeSnapshot(RoutingContext ctx) {
+        String executionId = ctx.pathParam("id");
+        String nodeId = ctx.pathParam("nodeId");
+        
+        if (snapshotManager == null) {
+            ctx.response()
+                .setStatusCode(503)
+                .end(new JsonObject().put("error", "Snapshot manager not configured").encode());
+            return;
+        }
+        
+        try {
+            NodeExecutionSnapshot snapshot = snapshotManager.getSnapshot(executionId, nodeId);
+            
+            if (snapshot == null) {
+                ctx.response()
+                    .setStatusCode(404)
+                    .end(new JsonObject().put("error", "Snapshot not found").encode());
+                return;
+            }
+            
+            ObjectNode response = objectMapper.createObjectNode();
+            response.put("id", snapshot.getId());
+            response.put("executionId", snapshot.getExecutionId());
+            response.put("nodeId", snapshot.getNodeId());
+            response.put("nodeType", snapshot.getNodeType());
+            response.put("nodeName", snapshot.getNodeName());
+            response.put("status", snapshot.getStatus().name());
+            response.put("startTime", snapshot.getStartTime());
+            response.put("endTime", snapshot.getEndTime());
+            response.put("duration", snapshot.getDuration());
+            
+            if (snapshot.getInputs() != null) {
+                response.set("inputs", objectMapper.valueToTree(snapshot.getInputs()));
+            }
+            if (snapshot.getOutputs() != null) {
+                response.set("outputs", objectMapper.valueToTree(snapshot.getOutputs()));
+            }
+            if (snapshot.getErrorMessage() != null) {
+                response.put("errorMessage", snapshot.getErrorMessage());
+            }
+            if (snapshot.getErrorStack() != null) {
+                response.put("errorStack", snapshot.getErrorStack());
+            }
+            if (snapshot.getMetadata() != null) {
+                response.set("metadata", objectMapper.valueToTree(snapshot.getMetadata()));
+            }
+            
+            response.put("promptTokens", snapshot.getPromptTokens() != null ? snapshot.getPromptTokens() : 0);
+            response.put("completionTokens", snapshot.getCompletionTokens() != null ? snapshot.getCompletionTokens() : 0);
+            response.put("totalTokens", snapshot.getTotalTokens() != null ? snapshot.getTotalTokens() : 0);
+            
+            if (snapshot.getInputsStorageKey() != null) {
+                response.put("inputsStorageKey", snapshot.getInputsStorageKey());
+            }
+            if (snapshot.getOutputsStorageKey() != null) {
+                response.put("outputsStorageKey", snapshot.getOutputsStorageKey());
+            }
+            
+            ctx.response()
+                .putHeader("Content-Type", "application/json")
+                .end(response.toString());
+                
+        } catch (Exception e) {
+            log.error("Failed to get node snapshot", e);
+            ctx.response()
+                .setStatusCode(500)
+                .end(new JsonObject().put("error", e.getMessage()).encode());
+        }
     }
     
     /**

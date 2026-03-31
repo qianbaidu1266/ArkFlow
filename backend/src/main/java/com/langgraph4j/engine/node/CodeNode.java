@@ -13,10 +13,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * 代码执行节点
- * 执行JavaScript/Python代码
- */
 @Slf4j
 public class CodeNode extends Node {
     
@@ -29,21 +25,18 @@ public class CodeNode extends Node {
     }
     
     @Override
-    public CompletableFuture<GraphState> execute(GraphState state, ExecutionContext context) {
+    protected CompletableFuture<GraphState> doExecute(GraphState state, ExecutionContext context) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 log.debug("Executing Code node: {}", id);
                 
-                // 获取配置
                 String language = getConfigValue("language", "javascript");
                 String code = getConfigValue("code", "");
                 String outputKey = getConfigValue("outputKey", "code_result");
                 Map<String, String> inputMappings = getConfigValue("inputMappings", new HashMap<>());
                 
-                // 创建绑定
                 SimpleBindings bindings = new SimpleBindings();
                 
-                // 映射输入变量
                 for (Map.Entry<String, String> entry : inputMappings.entrySet()) {
                     String varName = entry.getKey();
                     String stateKey = entry.getValue();
@@ -51,21 +44,16 @@ public class CodeNode extends Node {
                     bindings.put(varName, value);
                 }
                 
-                // 添加所有状态变量
                 bindings.putAll(state.getAll());
                 
-                // 添加工具函数
                 bindings.put("console", new Console());
                 bindings.put("JSON", new JSON());
                 
-                // 执行代码
                 Object result = scriptEngine.eval(code, bindings);
                 
-                // 更新状态
                 GraphState newState = state.copy();
                 newState.set(outputKey, result);
                 
-                // 获取输出变量
                 Map<String, String> outputMappings = getConfigValue("outputMappings", new HashMap<>());
                 for (Map.Entry<String, String> entry : outputMappings.entrySet()) {
                     String varName = entry.getKey();
@@ -85,6 +73,31 @@ public class CodeNode extends Node {
                 throw new RuntimeException("Code node execution failed", e);
             }
         });
+    }
+    
+    @Override
+    protected Map<String, Object> extractInputs(GraphState state) {
+        Map<String, Object> inputs = new HashMap<>();
+        inputs.put("language", getConfigValue("language", "javascript"));
+        inputs.put("code", getConfigValue("code", ""));
+        
+        Map<String, String> inputMappings = getConfigValue("inputMappings", new HashMap<>());
+        for (Map.Entry<String, String> entry : inputMappings.entrySet()) {
+            if (state.contains(entry.getValue())) {
+                inputs.put(entry.getKey(), state.get(entry.getValue()));
+            }
+        }
+        return inputs;
+    }
+    
+    @Override
+    protected Map<String, Object> extractOutputs(GraphState state) {
+        Map<String, Object> outputs = new HashMap<>();
+        String outputKey = getConfigValue("outputKey", "code_result");
+        if (state.contains(outputKey)) {
+            outputs.put("result", state.get(outputKey));
+        }
+        return outputs;
     }
     
     @Override
@@ -143,7 +156,6 @@ public class CodeNode extends Node {
         return params;
     }
     
-    // 控制台工具类
     public static class Console {
         public void log(Object... args) {
             StringBuilder sb = new StringBuilder();
@@ -164,7 +176,6 @@ public class CodeNode extends Node {
         }
     }
     
-    // JSON工具类
     public static class JSON {
         public String stringify(Object obj) {
             try {

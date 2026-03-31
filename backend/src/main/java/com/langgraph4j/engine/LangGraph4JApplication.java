@@ -6,7 +6,9 @@ import com.langgraph4j.engine.model.LLMClient;
 import com.langgraph4j.engine.model.EmbeddingClient;
 import com.langgraph4j.engine.rag.PGVectorKnowledgeBase;
 import com.langgraph4j.engine.repository.WorkflowRepository;
+import com.langgraph4j.engine.state.JdbcSnapshotManager;
 import com.langgraph4j.engine.state.RedisCheckpointManager;
+import com.langgraph4j.engine.state.SnapshotManager;
 import io.vertx.core.Vertx;
 import lombok.extern.slf4j.Slf4j;
 
@@ -40,6 +42,10 @@ public class LangGraph4JApplication {
                 WorkflowRepository repository = new WorkflowRepository(mysqlUrl, mysqlUser, mysqlPassword);
                 engine.setRepository(repository);
                 log.info("MySQL repository configured: {}", mysqlUrl);
+                
+                SnapshotManager snapshotManager = new JdbcSnapshotManager(mysqlUrl, mysqlUser, mysqlPassword);
+                engine.setSnapshotManager(snapshotManager);
+                log.info("JDBC snapshot manager configured");
             } catch (Exception e) {
                 log.warn("Failed to configure MySQL repository: {}. Workflow persistence will be disabled.", e.getMessage());
             }
@@ -108,7 +114,12 @@ public class LangGraph4JApplication {
         // 启动API服务
         int port = Integer.parseInt(config.getProperty("server.port", "8080"));
         Vertx vertx = Vertx.vertx();
-        vertx.deployVerticle(new WorkflowApi(engine, port));
+        
+        WorkflowApi workflowApi = new WorkflowApi(engine, port);
+        if (engine.getSnapshotManager() != null) {
+            workflowApi.setSnapshotManager(engine.getSnapshotManager());
+        }
+        vertx.deployVerticle(workflowApi);
         
         log.info("LangGraph4J Engine started on port {}", port);
         

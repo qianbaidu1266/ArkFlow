@@ -24,10 +24,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * HTTP 请求节点
- * 发送HTTP请求并处理响应
- */
 @Slf4j
 public class HttpNode extends Node {
     
@@ -42,12 +38,11 @@ public class HttpNode extends Node {
     }
     
     @Override
-    public CompletableFuture<GraphState> execute(GraphState state, ExecutionContext context) {
+    protected CompletableFuture<GraphState> doExecute(GraphState state, ExecutionContext context) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 log.debug("Executing HTTP node: {}", id);
                 
-                // 获取配置
                 String url = getConfigValue("url", "");
                 String method = getConfigValue("method", "GET").toUpperCase();
                 Map<String, String> headers = getConfigValue("headers", new HashMap<>());
@@ -58,10 +53,8 @@ public class HttpNode extends Node {
                 boolean extractJson = getConfigValue("extractJson", true);
                 String jsonPath = getConfigValue("jsonPath", null);
                 
-                // 渲染URL
                 String renderedUrl = renderTemplate(url, state);
                 
-                // 渲染headers
                 Map<String, String> renderedHeaders = new HashMap<>();
                 for (Map.Entry<String, String> entry : headers.entrySet()) {
                     renderedHeaders.put(
@@ -70,7 +63,6 @@ public class HttpNode extends Node {
                     );
                 }
                 
-                // 构建请求体
                 String requestBody = null;
                 if (bodyVariable != null) {
                     Object bodyValue = state.get(bodyVariable);
@@ -85,10 +77,8 @@ public class HttpNode extends Node {
                     }
                 }
                 
-                // 发送请求
                 String response = sendRequest(renderedUrl, method, renderedHeaders, requestBody, timeout);
                 
-                // 处理响应
                 Object output = response;
                 if (extractJson) {
                     try {
@@ -104,7 +94,6 @@ public class HttpNode extends Node {
                     }
                 }
                 
-                // 更新状态
                 GraphState newState = state.copy();
                 newState.set(outputKey, output);
                 newState.set(outputKey + "_raw", response);
@@ -118,6 +107,28 @@ public class HttpNode extends Node {
                 throw new RuntimeException("HTTP node execution failed", e);
             }
         });
+    }
+    
+    @Override
+    protected Map<String, Object> extractInputs(GraphState state) {
+        Map<String, Object> inputs = new HashMap<>();
+        inputs.put("url", getConfigValue("url", ""));
+        inputs.put("method", getConfigValue("method", "GET"));
+        String bodyVariable = getConfigValue("bodyVariable", null);
+        if (bodyVariable != null && state.contains(bodyVariable)) {
+            inputs.put("body", state.get(bodyVariable));
+        }
+        return inputs;
+    }
+    
+    @Override
+    protected Map<String, Object> extractOutputs(GraphState state) {
+        Map<String, Object> outputs = new HashMap<>();
+        String outputKey = getConfigValue("outputKey", "http_response");
+        if (state.contains(outputKey)) {
+            outputs.put("response", state.get(outputKey));
+        }
+        return outputs;
     }
     
     private String sendRequest(String url, String method, Map<String, String> headers, 
@@ -143,12 +154,10 @@ public class HttpNode extends Node {
                 break;
         }
         
-        // 设置headers
         for (Map.Entry<String, String> entry : headers.entrySet()) {
             request.setHeader(entry.getKey(), entry.getValue());
         }
         
-        // 设置body
         if (body != null && (request instanceof HttpPost || request instanceof HttpPut || request instanceof HttpPatch)) {
             ((HttpEntityContainer) request).setEntity(
                 new StringEntity(body, ContentType.APPLICATION_JSON)
@@ -169,7 +178,6 @@ public class HttpNode extends Node {
                 return null;
             }
             
-            // 处理数组索引
             if (part.matches(".*\\[\\d+\\]$")) {
                 String fieldName = part.substring(0, part.indexOf('['));
                 int index = Integer.parseInt(part.substring(part.indexOf('[') + 1, part.indexOf(']')));

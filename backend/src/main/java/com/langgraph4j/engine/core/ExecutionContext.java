@@ -5,6 +5,7 @@ import com.langgraph4j.engine.model.EmbeddingClient;
 import com.langgraph4j.engine.rag.KnowledgeBase;
 import com.langgraph4j.engine.state.CheckpointManager;
 import com.langgraph4j.engine.state.GraphState;
+import com.langgraph4j.engine.state.SnapshotManager;
 import io.vertx.core.Vertx;
 import lombok.Builder;
 import lombok.Data;
@@ -13,10 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * 执行上下文
- * 包含执行过程中的所有依赖和资源
- */
 @Data
 @Builder
 @Slf4j
@@ -26,6 +23,7 @@ public class ExecutionContext {
     private final String workflowId;
     private final Vertx vertx;
     private final CheckpointManager checkpointManager;
+    private final SnapshotManager snapshotManager;
     private final LLMClient llmClient;
     private final EmbeddingClient embeddingClient;
     private final KnowledgeBase knowledgeBase;
@@ -104,6 +102,7 @@ public class ExecutionContext {
             .workflowId(workflowId)
             .vertx(vertx)
             .checkpointManager(checkpointManager)
+            .snapshotManager(snapshotManager)
             .llmClient(llmClient)
             .embeddingClient(embeddingClient)
             .knowledgeBase(knowledgeBase)

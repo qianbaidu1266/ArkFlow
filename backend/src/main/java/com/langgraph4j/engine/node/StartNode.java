@@ -11,10 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * 开始节点
- * 工作流的入口节点
- */
 @Slf4j
 public class StartNode extends Node {
     
@@ -23,21 +19,18 @@ public class StartNode extends Node {
     }
     
     @Override
-    public CompletableFuture<GraphState> execute(GraphState state, ExecutionContext context) {
+    protected CompletableFuture<GraphState> doExecute(GraphState state, ExecutionContext context) {
         return CompletableFuture.supplyAsync(() -> {
             log.debug("Executing Start node: {}", id);
             
-            // 获取配置
             List<InputVariable> inputVariables = getConfigValue("inputVariables", List.of());
             
-            // 验证必需的输入变量
             for (InputVariable var : inputVariables) {
                 if (var.isRequired() && !state.contains(var.getName())) {
                     throw new RuntimeException("Required input variable missing: " + var.getName());
                 }
             }
             
-            // 设置默认值
             GraphState newState = state.copy();
             for (InputVariable var : inputVariables) {
                 if (!newState.contains(var.getName()) && var.getDefaultValue() != null) {
@@ -49,6 +42,16 @@ public class StartNode extends Node {
             
             return newState;
         });
+    }
+    
+    @Override
+    protected Map<String, Object> extractInputs(GraphState state) {
+        return Map.of("inputVariables", getConfigValue("inputVariables", List.of()));
+    }
+    
+    @Override
+    protected Map<String, Object> extractOutputs(GraphState state) {
+        return state.getAll();
     }
     
     @Override
@@ -91,7 +94,6 @@ public class StartNode extends Node {
         return params;
     }
     
-    // 输入变量配置
     @lombok.Data
     public static class InputVariable {
         private String name;

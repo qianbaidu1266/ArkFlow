@@ -8,6 +8,7 @@ import com.langgraph4j.engine.rag.KnowledgeBase;
 import com.langgraph4j.engine.repository.WorkflowRepository;
 import com.langgraph4j.engine.state.CheckpointManager;
 import com.langgraph4j.engine.state.GraphState;
+import com.langgraph4j.engine.state.SnapshotManager;
 import io.vertx.core.Vertx;
 import lombok.Builder;
 import lombok.Data;
@@ -33,6 +34,7 @@ public class WorkflowEngine {
     
     // 依赖组件
     private CheckpointManager checkpointManager;
+    private SnapshotManager snapshotManager;
     private LLMClient llmClient;
     private EmbeddingClient embeddingClient;
     private KnowledgeBase knowledgeBase;
@@ -143,7 +145,10 @@ public class WorkflowEngine {
         String executionId = generateExecutionId();
         log.info("Starting workflow execution: {} (workflow: {})", executionId, workflowId);
         
-        // 创建执行上下文
+        if (snapshotManager != null) {
+            snapshotManager.createExecution(executionId, workflowId, input.getAll());
+        }
+        
         ExecutionContext context = buildExecutionContext(executionId, workflowId, config);
         
         // 记录开始时间
@@ -236,6 +241,10 @@ public class WorkflowEngine {
             builder.checkpointManager(checkpointManager);
         }
         
+        if (snapshotManager != null) {
+            builder.snapshotManager(snapshotManager);
+        }
+        
         if (llmClient != null) {
             builder.llmClient(llmClient);
         }
@@ -265,6 +274,14 @@ public class WorkflowEngine {
     // Setters for dependencies
     public void setCheckpointManager(CheckpointManager checkpointManager) {
         this.checkpointManager = checkpointManager;
+    }
+    
+    public void setSnapshotManager(SnapshotManager snapshotManager) {
+        this.snapshotManager = snapshotManager;
+    }
+    
+    public SnapshotManager getSnapshotManager() {
+        return snapshotManager;
     }
     
     public void setRepository(WorkflowRepository repository) {

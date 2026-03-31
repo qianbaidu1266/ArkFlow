@@ -12,10 +12,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * 模板节点
- * 渲染文本模板
- */
 @Slf4j
 public class TemplateNode extends Node {
     
@@ -28,20 +24,17 @@ public class TemplateNode extends Node {
     }
     
     @Override
-    public CompletableFuture<GraphState> execute(GraphState state, ExecutionContext context) {
+    protected CompletableFuture<GraphState> doExecute(GraphState state, ExecutionContext context) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 log.debug("Executing Template node: {}", id);
                 
-                // 获取配置
                 String template = getConfigValue("template", "");
                 String outputKey = getConfigValue("outputKey", "rendered_template");
-                String outputFormat = getConfigValue("outputFormat", "text");  // text, markdown, html
+                String outputFormat = getConfigValue("outputFormat", "text");
                 
-                // 渲染模板
                 String result = renderTemplate(template, state);
                 
-                // 格式化输出
                 switch (outputFormat) {
                     case "markdown":
                         result = formatMarkdown(result);
@@ -50,11 +43,9 @@ public class TemplateNode extends Node {
                         result = formatHtml(result);
                         break;
                     default:
-                        // text - no formatting
                         break;
                 }
                 
-                // 更新状态
                 GraphState newState = state.copy();
                 newState.set(outputKey, result);
                 
@@ -69,9 +60,30 @@ public class TemplateNode extends Node {
         });
     }
     
-    /**
-     * 渲染模板
-     */
+    @Override
+    protected Map<String, Object> extractInputs(GraphState state) {
+        Map<String, Object> inputs = new HashMap<>();
+        String template = getConfigValue("template", "");
+        Matcher matcher = VARIABLE_PATTERN.matcher(template);
+        while (matcher.find()) {
+            String varName = matcher.group(1);
+            if (state.contains(varName)) {
+                inputs.put(varName, state.get(varName));
+            }
+        }
+        return inputs;
+    }
+    
+    @Override
+    protected Map<String, Object> extractOutputs(GraphState state) {
+        Map<String, Object> outputs = new HashMap<>();
+        String outputKey = getConfigValue("outputKey", "rendered_template");
+        if (state.contains(outputKey)) {
+            outputs.put("rendered", state.get(outputKey));
+        }
+        return outputs;
+    }
+    
     private String renderTemplate(String template, GraphState state) {
         if (template == null || template.isEmpty()) {
             return template;
@@ -79,21 +91,13 @@ public class TemplateNode extends Node {
         
         String result = template;
         
-        // 处理循环
         result = renderLoops(result, state);
-        
-        // 处理条件
         result = renderConditions(result, state);
-        
-        // 处理变量
         result = renderVariables(result, state);
         
         return result;
     }
     
-    /**
-     * 渲染变量
-     */
     private String renderVariables(String template, GraphState state) {
         StringBuilder result = new StringBuilder();
         Matcher matcher = VARIABLE_PATTERN.matcher(template);
@@ -109,9 +113,6 @@ public class TemplateNode extends Node {
         return result.toString();
     }
     
-    /**
-     * 渲染条件
-     */
     private String renderConditions(String template, GraphState state) {
         String result = template;
         Matcher matcher = CONDITION_PATTERN.matcher(result);
@@ -131,16 +132,12 @@ public class TemplateNode extends Node {
             String replacement = condition ? trueContent : (falseContent != null ? falseContent : "");
             result = result.replace(matcher.group(0), replacement);
             
-            // 重新匹配，因为字符串已改变
             matcher = CONDITION_PATTERN.matcher(result);
         }
         
         return result;
     }
     
-    /**
-     * 渲染循环
-     */
     @SuppressWarnings("unchecked")
     private String renderLoops(String template, GraphState state) {
         String result = template;
@@ -159,7 +156,6 @@ public class TemplateNode extends Node {
                 for (Object item : list) {
                     String itemContent = loopContent;
                     
-                    // 替换当前项变量
                     if (item instanceof Map) {
                         Map<String, Object> itemMap = (Map<String, Object>) item;
                         for (Map.Entry<String, Object> entry : itemMap.entrySet()) {
@@ -183,26 +179,17 @@ public class TemplateNode extends Node {
                 result = result.replace(matcher.group(0), "");
             }
             
-            // 重新匹配
             matcher = LOOP_PATTERN.matcher(result);
         }
         
         return result;
     }
     
-    /**
-     * 格式化Markdown
-     */
     private String formatMarkdown(String text) {
-        // 简单的Markdown清理
         return text.trim();
     }
     
-    /**
-     * 格式化HTML
-     */
     private String formatHtml(String text) {
-        // 简单的HTML转义
         return text
             .replace("&", "&amp;")
             .replace("<", "&lt;")

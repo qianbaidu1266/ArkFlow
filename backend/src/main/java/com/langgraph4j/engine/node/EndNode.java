@@ -13,10 +13,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * 结束节点
- * 工作流的出口节点
- */
 @Slf4j
 public class EndNode extends Node {
     
@@ -27,23 +23,20 @@ public class EndNode extends Node {
     }
     
     @Override
-    public CompletableFuture<GraphState> execute(GraphState state, ExecutionContext context) {
+    protected CompletableFuture<GraphState> doExecute(GraphState state, ExecutionContext context) {
         return CompletableFuture.supplyAsync(() -> {
             log.debug("Executing End node: {}", id);
             
-            // 获取配置
             List<OutputVariable> outputVariables = getConfigValue("outputVariables", List.of());
-            String outputFormat = getConfigValue("outputFormat", "object");  // object, text
+            String outputFormat = getConfigValue("outputFormat", "object");
             String outputTemplate = getConfigValue("outputTemplate", null);
             
             GraphState newState = state.copy();
             
             if ("text".equals(outputFormat) && outputTemplate != null) {
-                // 文本格式输出
                 String renderedOutput = renderTemplate(outputTemplate, state);
                 newState.set("__output", renderedOutput);
             } else {
-                // 对象格式输出
                 Map<String, Object> output = new HashMap<>();
                 for (OutputVariable var : outputVariables) {
                     Object value = state.get(var.getSourceVariable());
@@ -56,7 +49,6 @@ public class EndNode extends Node {
                 newState.set("__output", output);
             }
             
-            // 标记执行完成
             newState.set("__completed", true);
             newState.set("__end_time", System.currentTimeMillis());
             
@@ -66,9 +58,20 @@ public class EndNode extends Node {
         });
     }
     
-    /**
-     * 渲染模板
-     */
+    @Override
+    protected Map<String, Object> extractInputs(GraphState state) {
+        return state.getAll();
+    }
+    
+    @Override
+    protected Map<String, Object> extractOutputs(GraphState state) {
+        Map<String, Object> outputs = new HashMap<>();
+        if (state.contains("__output")) {
+            outputs.put("output", state.get("__output"));
+        }
+        return outputs;
+    }
+    
     private String renderTemplate(String template, GraphState state) {
         if (template == null || template.isEmpty()) {
             return template;
@@ -124,7 +127,6 @@ public class EndNode extends Node {
         return params;
     }
     
-    // 输出变量配置
     @lombok.Data
     public static class OutputVariable {
         private String name;

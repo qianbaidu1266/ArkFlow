@@ -17,10 +17,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * 条件分支节点
- * 根据条件表达式决定执行路径
- */
 @Slf4j
 public class ConditionNode extends Node {
     
@@ -34,12 +30,11 @@ public class ConditionNode extends Node {
     }
     
     @Override
-    public CompletableFuture<GraphState> execute(GraphState state, ExecutionContext context) {
+    protected CompletableFuture<GraphState> doExecute(GraphState state, ExecutionContext context) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 log.debug("Executing Condition node: {}", id);
                 
-                // 获取配置
                 String conditionType = getConfigValue("conditionType", "expression");
                 String expression = getConfigValue("expression", "true");
                 List<ConditionCase> cases = getConfigValue("cases", null);
@@ -48,14 +43,11 @@ public class ConditionNode extends Node {
                 String result;
                 
                 if ("switch".equals(conditionType)) {
-                    // 多分支条件
                     result = evaluateSwitchCase(state, inputVariable, cases);
                 } else {
-                    // 表达式条件
                     result = evaluateExpression(state, expression) ? "true" : "false";
                 }
                 
-                // 更新状态
                 GraphState newState = state.copy();
                 newState.set("__condition_result", result);
                 newState.set(id + "_result", result);
@@ -71,19 +63,35 @@ public class ConditionNode extends Node {
         });
     }
     
-    /**
-     * 评估表达式
-     */
+    @Override
+    protected Map<String, Object> extractInputs(GraphState state) {
+        Map<String, Object> inputs = new HashMap<>();
+        inputs.put("conditionType", getConfigValue("conditionType", "expression"));
+        inputs.put("expression", getConfigValue("expression", "true"));
+        
+        String inputVariable = getConfigValue("inputVariable", null);
+        if (inputVariable != null && state.contains(inputVariable)) {
+            inputs.put("inputValue", state.get(inputVariable));
+        }
+        return inputs;
+    }
+    
+    @Override
+    protected Map<String, Object> extractOutputs(GraphState state) {
+        Map<String, Object> outputs = new HashMap<>();
+        if (state.contains("__condition_result")) {
+            outputs.put("result", state.get("__condition_result"));
+        }
+        return outputs;
+    }
+    
     private boolean evaluateExpression(GraphState state, String expression) {
         try {
-            // 替换变量
             String renderedExpression = renderVariables(expression, state);
             
-            // 创建绑定
             SimpleBindings bindings = new SimpleBindings();
             bindings.putAll(state.getAll());
             
-            // 执行表达式
             Object result = scriptEngine.eval(renderedExpression, bindings);
             
             if (result instanceof Boolean) {
@@ -98,9 +106,6 @@ public class ConditionNode extends Node {
         }
     }
     
-    /**
-     * 评估多分支条件
-     */
     private String evaluateSwitchCase(GraphState state, String inputVariable, List<ConditionCase> cases) {
         if (inputVariable == null || cases == null || cases.isEmpty()) {
             return "default";
@@ -122,9 +127,6 @@ public class ConditionNode extends Node {
         return "default";
     }
     
-    /**
-     * 检查是否匹配条件分支
-     */
     private boolean matchesCase(String inputValue, ConditionCase conditionCase, GraphState state) {
         String operator = conditionCase.getOperator();
         String value = conditionCase.getValue();
@@ -171,9 +173,6 @@ public class ConditionNode extends Node {
         }
     }
     
-    /**
-     * 渲染变量
-     */
     private String renderVariables(String template, GraphState state) {
         if (template == null || template.isEmpty()) {
             return template;
@@ -241,12 +240,11 @@ public class ConditionNode extends Node {
         return params;
     }
     
-    // 条件分支配置
     @lombok.Data
     public static class ConditionCase {
-        private String target;  // 目标分支标识
-        private String operator;  // 操作符
-        private String value;  // 比较值
-        private String description;  // 描述
+        private String target;
+        private String operator;
+        private String value;
+        private String description;
     }
 }

@@ -11,10 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * 变量赋值节点
- * 设置或修改变量值
- */
 @Slf4j
 public class VariableAssignerNode extends Node {
     
@@ -23,15 +19,13 @@ public class VariableAssignerNode extends Node {
     }
     
     @Override
-    public CompletableFuture<GraphState> execute(GraphState state, ExecutionContext context) {
+    protected CompletableFuture<GraphState> doExecute(GraphState state, ExecutionContext context) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 log.debug("Executing Variable Assigner node: {}", id);
                 
-                // 获取配置
                 List<VariableAssignment> assignments = getConfigValue("assignments", List.of());
                 
-                // 执行赋值
                 GraphState newState = state.copy();
                 for (VariableAssignment assignment : assignments) {
                     Object value = evaluateValue(assignment, state);
@@ -50,9 +44,34 @@ public class VariableAssignerNode extends Node {
         });
     }
     
-    /**
-     * 评估值
-     */
+    @Override
+    protected Map<String, Object> extractInputs(GraphState state) {
+        Map<String, Object> inputs = new HashMap<>();
+        List<VariableAssignment> assignments = getConfigValue("assignments", List.of());
+        for (VariableAssignment assignment : assignments) {
+            if ("variable".equals(assignment.getValueType())) {
+                String sourceVar = assignment.getSourceVariable();
+                if (sourceVar != null && state.contains(sourceVar)) {
+                    inputs.put(sourceVar, state.get(sourceVar));
+                }
+            }
+        }
+        return inputs;
+    }
+    
+    @Override
+    protected Map<String, Object> extractOutputs(GraphState state) {
+        Map<String, Object> outputs = new HashMap<>();
+        List<VariableAssignment> assignments = getConfigValue("assignments", List.of());
+        for (VariableAssignment assignment : assignments) {
+            String targetVar = assignment.getTargetVariable();
+            if (targetVar != null && state.contains(targetVar)) {
+                outputs.put(targetVar, state.get(targetVar));
+            }
+        }
+        return outputs;
+    }
+    
     private Object evaluateValue(VariableAssignment assignment, GraphState state) {
         String valueType = assignment.getValueType();
         
@@ -77,12 +96,7 @@ public class VariableAssignerNode extends Node {
         }
     }
     
-    /**
-     * 评估表达式
-     */
     private Object evaluateExpression(String expression, GraphState state) {
-        // 简单的表达式评估
-        // 实际实现可以使用脚本引擎
         try {
             javax.script.ScriptEngine engine = new javax.script.ScriptEngineManager().getEngineByName("JavaScript");
             javax.script.SimpleBindings bindings = new javax.script.SimpleBindings();
@@ -94,9 +108,6 @@ public class VariableAssignerNode extends Node {
         }
     }
     
-    /**
-     * 连接多个值
-     */
     private String concatenateValues(List<ConcatItem> items, GraphState state) {
         StringBuilder result = new StringBuilder();
         for (ConcatItem item : items) {
@@ -112,9 +123,6 @@ public class VariableAssignerNode extends Node {
         return result.toString();
     }
     
-    /**
-     * 转换值
-     */
     private Object transformValue(String sourceVariable, String transformType, GraphState state) {
         Object value = state.get(sourceVariable);
         if (value == null) return null;
@@ -212,22 +220,20 @@ public class VariableAssignerNode extends Node {
         return params;
     }
     
-    // 变量赋值配置
     @lombok.Data
     public static class VariableAssignment {
         private String targetVariable;
-        private String valueType = "constant";  // constant, variable, expression, concat, transform
-        private Object value;  // for constant
-        private String sourceVariable;  // for variable, transform
-        private String expression;  // for expression
-        private List<ConcatItem> concatItems;  // for concat
-        private String transformType;  // for transform
+        private String valueType = "constant";
+        private Object value;
+        private String sourceVariable;
+        private String expression;
+        private List<ConcatItem> concatItems;
+        private String transformType;
     }
     
-    // 连接项配置
     @lombok.Data
     public static class ConcatItem {
-        private String type;  // constant, variable
+        private String type;
         private String value;
     }
 }

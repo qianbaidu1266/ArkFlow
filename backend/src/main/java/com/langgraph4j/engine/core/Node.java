@@ -2,16 +2,15 @@ package com.langgraph4j.engine.core;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.langgraph4j.engine.state.GraphState;
+import com.langgraph4j.engine.state.NodeExecutionSnapshot;
+import com.langgraph4j.engine.state.NodeExecutionStatus;
+import com.langgraph4j.engine.state.SnapshotManager;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * 工作流节点基类
- * 所有节点类型都需要继承此类
- */
 @Data
 @Slf4j
 public abstract class Node {
@@ -28,39 +27,69 @@ public abstract class Node {
         this.type = type;
     }
     
-    /**
-     * 执行节点逻辑
-     * @param state 当前状态
-     * @param context 执行上下文
-     * @return 执行后的状态
-     */
-    public abstract CompletableFuture<GraphState> execute(GraphState state, ExecutionContext context);
+    public CompletableFuture<GraphState> execute(GraphState state, ExecutionContext context) {
+        SnapshotManager snapshotManager = context.getSnapshotManager();
+        NodeExecutionSnapshot snapshot = null;
+        
+        if (snapshotManager != null) {
+            snapshot = NodeExecutionSnapshot.create(
+                context.getExecutionId(),
+                id,
+                type.getCode(),
+                name
+            );
+            snapshot.setInputs(extractInputs(state));
+            snapshot.markRunning();
+            snapshotManager.saveSnapshot(snapshot);
+            snapshotManager.updateExecutionStatus(context.getExecutionId(), "RUNNING");
+        }
+        
+        final NodeExecutionSnapshot finalSnapshot = snapshot;
+        
+        return doExecute(state, context)
+            .thenApply(output -> {
+                if (snapshotManager != null && finalSnapshot != null) {
+                    Map<String, Object> outputs = extractOutputs(output);
+                    Map<String, Object> metadata = buildMetadata(state, output, context);
+                    finalSnapshot.markSuccess(outputs, metadata);
+                    snapshotManager.updateSnapshot(finalSnapshot);
+                }
+                return output;
+            })
+            .exceptionally(e -> {
+                if (snapshotManager != null && finalSnapshot != null) {
+                    finalSnapshot.markFailed(e.getMessage(), getStackTrace(e));
+                    snapshotManager.updateSnapshot(finalSnapshot);
+                    snapshotManager.updateExecutionError(context.getExecutionId(), e.getMessage());
+                }
+                throw new RuntimeException("Node execution failed: " + id, e);
+            });
+    }
     
-    /**
-     * 验证节点配置
-     */
+    protected abstract CompletableFuture<GraphState> doExecute(GraphState state, ExecutionContext context);
+    
+    protected Map<String, Object> extractInputs(GraphState state) {
+        return state.getAll();
+    }
+    
+    protected Map<String, Object> extractOutputs(GraphState state) {
+        return state.getAll();
+    }
+    
+    protected Map<String, Object> buildMetadata(GraphState input, GraphState output, ExecutionContext context) {
+        return Map.of();
+    }
+    
     public abstract boolean validate();
     
-    /**
-     * 获取输入参数定义
-     */
     public abstract Map<String, ParameterDef> getInputParameters();
     
-    /**
-     * 获取输出参数定义
-     */
     public abstract Map<String, ParameterDef> getOutputParameters();
     
-    /**
-     * 获取配置JSON Schema
-     */
     public JsonNode getConfigSchema() {
         return null;
     }
     
-    /**
-     * 更新配置
-     */
     public void updateConfig(Map<String, Object> newConfig) {
         if (this.config != null) {
             this.config.putAll(newConfig);
@@ -69,9 +98,6 @@ public abstract class Node {
         }
     }
     
-    /**
-     * 获取配置值
-     */
     @SuppressWarnings("unchecked")
     public <T> T getConfigValue(String key, T defaultValue) {
         if (config == null) return defaultValue;
@@ -79,9 +105,15 @@ public abstract class Node {
         return value != null ? (T) value : defaultValue;
     }
     
-    /**
-     * 节点位置
-     */
+    private String getStackTrace(Throwable e) {
+        StringBuilder sb = new StringBuilder();
+        for (StackTraceElement element : e.getStackTrace()) {
+            sb.append(element.toString()).append("\n");
+            if (sb.length() > 5000) break;
+        }
+        return sb.toString();
+    }
+    
     @Data
     public static class Position {
         private double x;
@@ -95,9 +127,6 @@ public abstract class Node {
         }
     }
     
-    /**
-     * 参数定义
-     */
     @Data
     public static class ParameterDef {
         private String name;
