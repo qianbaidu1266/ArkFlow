@@ -3,12 +3,11 @@ package com.langgraph4j.engine.node;
 import com.langgraph4j.engine.core.ExecutionContext;
 import com.langgraph4j.engine.core.Node;
 import com.langgraph4j.engine.core.NodeType;
+import com.langgraph4j.engine.executor.CodeExecutor;
+import com.langgraph4j.engine.executor.CodeExecutorFactory;
 import com.langgraph4j.engine.state.GraphState;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
-import javax.script.SimpleBindings;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -16,12 +15,10 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 public class CodeNode extends Node {
     
-    private final ScriptEngine scriptEngine;
+    private static final long DEFAULT_TIMEOUT_MS = 60000;
     
     public CodeNode(String id, String name) {
         super(id, name, NodeType.CODE);
-        ScriptEngineManager manager = new ScriptEngineManager();
-        this.scriptEngine = manager.getEngineByName("JavaScript");
     }
     
     @Override
@@ -33,23 +30,24 @@ public class CodeNode extends Node {
                 String language = getConfigValue("language", "javascript");
                 String code = getConfigValue("code", "");
                 String outputKey = getConfigValue("outputKey", "code_result");
+                long timeout = getConfigValue("timeout", DEFAULT_TIMEOUT_MS);
                 Map<String, String> inputMappings = getConfigValue("inputMappings", new HashMap<>());
                 
-                SimpleBindings bindings = new SimpleBindings();
+                Map<String, Object> variables = new HashMap<>();
                 
                 for (Map.Entry<String, String> entry : inputMappings.entrySet()) {
                     String varName = entry.getKey();
                     String stateKey = entry.getValue();
                     Object value = state.get(stateKey);
-                    bindings.put(varName, value);
+                    variables.put(varName, value);
                 }
                 
-                bindings.putAll(state.getAll());
+                variables.putAll(state.getAll());
                 
-                bindings.put("console", new Console());
-                bindings.put("JSON", new JSON());
+                CodeExecutor executor = CodeExecutorFactory.getExecutor(language);
+                log.info("Executing {} code with {} executor", language, executor.getClass().getSimpleName());
                 
-                Object result = scriptEngine.eval(code, bindings);
+                Object result = executor.execute(code, variables, timeout);
                 
                 GraphState newState = state.copy();
                 newState.set(outputKey, result);
@@ -58,9 +56,13 @@ public class CodeNode extends Node {
                 for (Map.Entry<String, String> entry : outputMappings.entrySet()) {
                     String varName = entry.getKey();
                     String stateKey = entry.getValue();
-                    Object value = bindings.get(varName);
-                    if (value != null) {
-                        newState.set(stateKey, value);
+                    if (result instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> resultMap = (Map<String, Object>) result;
+                        Object value = resultMap.get(varName);
+                        if (value != null) {
+                            newState.set(stateKey, value);
+                        }
                     }
                 }
                 
@@ -70,7 +72,7 @@ public class CodeNode extends Node {
                 
             } catch (Exception e) {
                 log.error("Code node execution failed: {}", id, e);
-                throw new RuntimeException("Code node execution failed", e);
+                throw new RuntimeException("Code node execution failed: " + e.getMessage(), e);
             }
         });
     }
@@ -108,6 +110,11 @@ public class CodeNode extends Node {
         if (code == null || code.isEmpty()) {
             log.error("Code node {}: code is required", id);
             return false;
+        }
+        
+        String language = getConfigValue("language", "javascript");
+        if (!CodeExecutorFactory.isLanguageSupported(language)) {
+            log.warn("Code node {}: unsupported language {}, will use fallback", id, language);
         }
         
         return true;
@@ -154,43 +161,5 @@ public class CodeNode extends Node {
         }
         
         return params;
-    }
-    
-    public static class Console {
-        public void log(Object... args) {
-            StringBuilder sb = new StringBuilder();
-            for (Object arg : args) {
-                if (sb.length() > 0) sb.append(" ");
-                sb.append(arg);
-            }
-            log.info("[CodeNode] {}", sb);
-        }
-        
-        public void error(Object... args) {
-            StringBuilder sb = new StringBuilder();
-            for (Object arg : args) {
-                if (sb.length() > 0) sb.append(" ");
-                sb.append(arg);
-            }
-            log.error("[CodeNode] {}", sb);
-        }
-    }
-    
-    public static class JSON {
-        public String stringify(Object obj) {
-            try {
-                return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(obj);
-            } catch (Exception e) {
-                return "{}";
-            }
-        }
-        
-        public Object parse(String json) {
-            try {
-                return new com.fasterxml.jackson.databind.ObjectMapper().readValue(json, Object.class);
-            } catch (Exception e) {
-                return null;
-            }
-        }
     }
 }

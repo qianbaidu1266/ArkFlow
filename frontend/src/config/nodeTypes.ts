@@ -297,7 +297,9 @@ export const nodeConfigDefs: Record<NodeType, NodeConfigDef[]> = {
       type: 'select',
       label: '编程语言',
       options: [
-        { label: 'JavaScript', value: 'javascript' }
+        { label: 'JavaScript', value: 'javascript' },
+        { label: 'Python', value: 'python' },
+        { label: 'Java', value: 'java' }
       ],
       defaultValue: 'javascript'
     },
