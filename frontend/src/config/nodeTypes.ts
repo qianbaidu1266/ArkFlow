@@ -304,29 +304,23 @@ export const nodeConfigDefs: Record<NodeType, NodeConfigDef[]> = {
       defaultValue: 'javascript'
     },
     {
+      name: 'inputVariables',
+      type: 'array',
+      label: '输入变量',
+      description: '定义从前面节点传入的参数'
+    },
+    {
       name: 'code',
       type: 'textarea',
       label: '代码',
-      description: '要执行的代码',
+      description: '要执行的代码，定义 main() 函数接收输入参数并返回结果对象',
       required: true
     },
     {
-      name: 'inputMappings',
-      type: 'json',
-      label: '输入映射',
-      description: '变量名到代码变量的映射'
-    },
-    {
-      name: 'outputMappings',
-      type: 'json',
-      label: '输出映射',
-      description: '代码变量到输出变量的映射'
-    },
-    {
-      name: 'outputKey',
-      type: 'string',
-      label: '输出变量名',
-      defaultValue: 'code_result'
+      name: 'outputVariables',
+      type: 'array',
+      label: '输出变量',
+      description: '定义代码返回的对象字段作为输出变量'
     }
   ],
   

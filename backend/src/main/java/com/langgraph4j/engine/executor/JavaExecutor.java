@@ -13,16 +13,13 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class JavaExecutor implements CodeExecutor {
     
-    private final ObjectMapper objectMapper;
     private final String javaHome;
-    private final String classpath;
+    private final ObjectMapper objectMapper;
     
     public JavaExecutor() {
-        this.objectMapper = new ObjectMapper();
         this.javaHome = System.getProperty("java.home");
-        this.classpath = System.getProperty("java.class.path", ".");
-        log.info("JavaExecutor initialized with java.home={}, classpath length={}", 
-            javaHome, classpath.length());
+        this.objectMapper = new ObjectMapper();
+        log.info("JavaExecutor initialized with java.home={}", javaHome);
     }
     
     @Override
@@ -39,12 +36,13 @@ public class JavaExecutor implements CodeExecutor {
             Path javaFile = tempDir.resolve(className + ".java");
             
             String fullCode = buildFullClass(className, code, variables);
+            log.debug("Generated Java code:\n{}", fullCode);
+            
             Files.writeString(javaFile, fullCode, StandardCharsets.UTF_8);
             
             String javac = javaHome + "/bin/javac";
             ProcessBuilder compilePb = new ProcessBuilder(
                 javac, 
-                "-cp", classpath,
                 "-d", tempDir.toString(),
                 javaFile.toString()
             );
@@ -65,7 +63,7 @@ public class JavaExecutor implements CodeExecutor {
             String java = javaHome + "/bin/java";
             ProcessBuilder runPb = new ProcessBuilder(
                 java,
-                "-cp", tempDir.toString() + File.pathSeparator + classpath,
+                "-cp", tempDir.toString(),
                 className
             );
             runPb.redirectErrorStream(true);
@@ -95,33 +93,34 @@ public class JavaExecutor implements CodeExecutor {
         sb.append("import java.util.*;\n");
         sb.append("import java.math.*;\n");
         sb.append("import java.time.*;\n");
-        sb.append("import java.text.*;\n");
-        sb.append("import com.fasterxml.jackson.databind.*;\n\n");
+        sb.append("import java.text.*;\n\n");
         sb.append("public class ").append(className).append(" {\n");
-        sb.append("    private static final ObjectMapper mapper = new ObjectMapper();\n\n");
+        sb.append("    \n");
         sb.append("    public static void main(String[] args) throws Exception {\n");
+        sb.append("        Object result = main();\n");
+        sb.append("        if (result != null) {\n");
+        sb.append("            System.out.println(result);\n");
+        sb.append("        }\n");
+        sb.append("    }\n");
+        sb.append("    \n");
         
+        // 生成 main() 函数签名
+        sb.append("    public static Object main(");
         if (variables != null && !variables.isEmpty()) {
-            sb.append("        // Input variables\n");
+            boolean first = true;
             for (Map.Entry<String, Object> entry : variables.entrySet()) {
+                if (!first) sb.append(", ");
                 String varName = sanitizeVarName(entry.getKey());
-                String jsonValue;
-                try {
-                    jsonValue = objectMapper.writeValueAsString(entry.getValue());
-                } catch (Exception e) {
-                    jsonValue = "null";
-                }
-                sb.append("        Object ").append(varName).append(" = mapper.readValue(")
-                  .append("\"").append(jsonValue.replace("\"", "\\\"")).append("\", Object.class);\n");
+                sb.append("Object ").append(varName);
+                first = false;
             }
         }
+        sb.append(") throws Exception {\n");
         
-        sb.append("        // User code\n");
         String indentedCode = userCode.lines()
             .map(line -> "        " + line)
             .collect(java.util.stream.Collectors.joining("\n"));
         sb.append(indentedCode).append("\n");
-        
         sb.append("    }\n");
         sb.append("    \n");
         sb.append("    // ===== Helper methods =====\n");
@@ -135,16 +134,6 @@ public class JavaExecutor implements CodeExecutor {
         sb.append("        catch (InterruptedException e) { Thread.currentThread().interrupt(); }\n");
         sb.append("    }\n");
         sb.append("    \n");
-        sb.append("    private static String toJson(Object obj) {\n");
-        sb.append("        try { return mapper.writeValueAsString(obj); }\n");
-        sb.append("        catch (Exception e) { return \"null\"; }\n");
-        sb.append("    }\n");
-        sb.append("    \n");
-        sb.append("    private static Object fromJson(String json) {\n");
-        sb.append("        try { return mapper.readValue(json, Object.class); }\n");
-        sb.append("        catch (Exception e) { return null; }\n");
-        sb.append("    }\n");
-        sb.append("    \n");
         sb.append("    private static String format(String pattern, Object... args) {\n");
         sb.append("        return String.format(pattern, args);\n");
         sb.append("    }\n");
@@ -152,13 +141,33 @@ public class JavaExecutor implements CodeExecutor {
         sb.append("    private static long currentTimeMillis() {\n");
         sb.append("        return System.currentTimeMillis();\n");
         sb.append("    }\n");
+        sb.append("    \n");
+        sb.append("    private static int parseInt(Object obj) {\n");
+        sb.append("        return obj == null ? 0 : Integer.parseInt(obj.toString());\n");
+        sb.append("    }\n");
+        sb.append("    \n");
+        sb.append("    private static long parseLong(Object obj) {\n");
+        sb.append("        return obj == null ? 0L : Long.parseLong(obj.toString());\n");
+        sb.append("    }\n");
+        sb.append("    \n");
+        sb.append("    private static double parseDouble(Object obj) {\n");
+        sb.append("        return obj == null ? 0.0 : Double.parseDouble(obj.toString());\n");
+        sb.append("    }\n");
+        sb.append("    \n");
+        sb.append("    private static String str(Object obj) {\n");
+        sb.append("        return obj == null ? \"null\" : obj.toString();\n");
+        sb.append("    }\n");
         sb.append("}\n");
         
         return sb.toString();
     }
     
     private String sanitizeVarName(String name) {
-        return name.replaceAll("[^a-zA-Z0-9_]", "_");
+        String sanitized = name.replaceAll("[^a-zA-Z0-9_]", "_");
+        if (sanitized.isEmpty() || Character.isDigit(sanitized.charAt(0))) {
+            sanitized = "var_" + sanitized;
+        }
+        return sanitized;
     }
     
     private String readOutput(Process process) throws IOException {
@@ -182,6 +191,7 @@ public class JavaExecutor implements CodeExecutor {
         String trimmed = output.trim();
         
         try {
+            // 尝试解析为 JSON 对象或数组
             if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
                 return objectMapper.readValue(trimmed, Object.class);
             }

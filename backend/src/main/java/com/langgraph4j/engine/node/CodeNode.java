@@ -8,8 +8,7 @@ import com.langgraph4j.engine.executor.CodeExecutorFactory;
 import com.langgraph4j.engine.state.GraphState;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
@@ -29,19 +28,24 @@ public class CodeNode extends Node {
                 
                 String language = getConfigValue("language", "javascript");
                 String code = getConfigValue("code", "");
-                String outputKey = getConfigValue("outputKey", "code_result");
                 long timeout = getConfigValue("timeout", DEFAULT_TIMEOUT_MS);
-                Map<String, String> inputMappings = getConfigValue("inputMappings", new HashMap<>());
                 
-                Map<String, Object> variables = new HashMap<>();
+                // 获取输入变量配置
+                List<Map<String, Object>> inputVariables = getConfigList("inputVariables");
+                List<Map<String, Object>> outputVariables = getConfigList("outputVariables");
                 
-                for (Map.Entry<String, String> entry : inputMappings.entrySet()) {
-                    String varName = entry.getKey();
-                    String stateKey = entry.getValue();
-                    Object value = state.get(stateKey);
-                    variables.put(varName, value);
+                // 构建输入参数
+                Map<String, Object> variables = new LinkedHashMap<>();
+                for (Map<String, Object> varDef : inputVariables) {
+                    String varName = (String) varDef.get("name");
+                    String sourceKey = (String) varDef.get("source");
+                    if (varName != null && sourceKey != null) {
+                        Object value = state.get(sourceKey);
+                        variables.put(varName, value);
+                    }
                 }
                 
+                // 添加所有状态变量作为备选
                 variables.putAll(state.getAll());
                 
                 CodeExecutor executor = CodeExecutorFactory.getExecutor(language);
@@ -50,20 +54,29 @@ public class CodeNode extends Node {
                 Object result = executor.execute(code, variables, timeout);
                 
                 GraphState newState = state.copy();
-                newState.set(outputKey, result);
                 
-                Map<String, String> outputMappings = getConfigValue("outputMappings", new HashMap<>());
-                for (Map.Entry<String, String> entry : outputMappings.entrySet()) {
-                    String varName = entry.getKey();
-                    String stateKey = entry.getValue();
-                    if (result instanceof Map) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> resultMap = (Map<String, Object>) result;
-                        Object value = resultMap.get(varName);
-                        if (value != null) {
-                            newState.set(stateKey, value);
+                // 处理输出变量
+                if (result instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> resultMap = (Map<String, Object>) result;
+                    
+                    // 根据 outputVariables 配置提取输出
+                    for (Map<String, Object> varDef : outputVariables) {
+                        String varName = (String) varDef.get("name");
+                        String targetKey = (String) varDef.get("target");
+                        if (varName != null && targetKey != null) {
+                            Object value = resultMap.get(varName);
+                            newState.set(targetKey, value);
                         }
                     }
+                    
+                    // 如果没有配置输出变量，将整个结果存入默认键
+                    if (outputVariables.isEmpty()) {
+                        newState.set("code_result", result);
+                    }
+                } else {
+                    // 非对象结果，存入默认键
+                    newState.set("code_result", result);
                 }
                 
                 log.debug("Code node executed successfully: {}", id);
@@ -83,10 +96,11 @@ public class CodeNode extends Node {
         inputs.put("language", getConfigValue("language", "javascript"));
         inputs.put("code", getConfigValue("code", ""));
         
-        Map<String, String> inputMappings = getConfigValue("inputMappings", new HashMap<>());
-        for (Map.Entry<String, String> entry : inputMappings.entrySet()) {
-            if (state.contains(entry.getValue())) {
-                inputs.put(entry.getKey(), state.get(entry.getValue()));
+        List<Map<String, Object>> inputVariables = getConfigList("inputVariables");
+        for (Map<String, Object> varDef : inputVariables) {
+            String sourceKey = (String) varDef.get("source");
+            if (sourceKey != null && state.contains(sourceKey)) {
+                inputs.put(sourceKey, state.get(sourceKey));
             }
         }
         return inputs;
@@ -95,11 +109,35 @@ public class CodeNode extends Node {
     @Override
     protected Map<String, Object> extractOutputs(GraphState state) {
         Map<String, Object> outputs = new HashMap<>();
-        String outputKey = getConfigValue("outputKey", "code_result");
-        if (state.contains(outputKey)) {
-            outputs.put("result", state.get(outputKey));
+        
+        List<Map<String, Object>> outputVariables = getConfigList("outputVariables");
+        for (Map<String, Object> varDef : outputVariables) {
+            String targetKey = (String) varDef.get("target");
+            if (targetKey != null && state.contains(targetKey)) {
+                outputs.put(targetKey, state.get(targetKey));
+            }
         }
+        
+        // 如果没有配置输出变量，检查默认键
+        if (outputs.isEmpty() && state.contains("code_result")) {
+            outputs.put("code_result", state.get("code_result"));
+        }
+        
         return outputs;
+    }
+    
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> getConfigList(String key) {
+        Object value = config != null ? config.get(key) : null;
+        List<Map<String, Object>> result = new ArrayList<>();
+        if (value instanceof List) {
+            for (Object item : (List<?>) value) {
+                if (item instanceof Map) {
+                    result.add((Map<String, Object>) item);
+                }
+            }
+        }
+        return result;
     }
     
     @Override
@@ -124,14 +162,17 @@ public class CodeNode extends Node {
     public Map<String, ParameterDef> getInputParameters() {
         Map<String, ParameterDef> params = new HashMap<>();
         
-        Map<String, String> inputMappings = getConfigValue("inputMappings", new HashMap<>());
-        for (Map.Entry<String, String> entry : inputMappings.entrySet()) {
-            ParameterDef def = new ParameterDef();
-            def.setName(entry.getValue());
-            def.setType("any");
-            def.setDescription("Input: " + entry.getKey());
-            def.setRequired(true);
-            params.put(entry.getValue(), def);
+        List<Map<String, Object>> inputVariables = getConfigList("inputVariables");
+        for (Map<String, Object> varDef : inputVariables) {
+            String sourceKey = (String) varDef.get("source");
+            if (sourceKey != null) {
+                ParameterDef def = new ParameterDef();
+                def.setName(sourceKey);
+                def.setType("any");
+                def.setDescription("Input: " + varDef.get("name"));
+                def.setRequired(true);
+                params.put(sourceKey, def);
+            }
         }
         
         return params;
@@ -141,23 +182,27 @@ public class CodeNode extends Node {
     public Map<String, ParameterDef> getOutputParameters() {
         Map<String, ParameterDef> params = new HashMap<>();
         
-        String outputKey = getConfigValue("outputKey", "code_result");
+        List<Map<String, Object>> outputVariables = getConfigList("outputVariables");
+        for (Map<String, Object> varDef : outputVariables) {
+            String targetKey = (String) varDef.get("target");
+            if (targetKey != null) {
+                ParameterDef def = new ParameterDef();
+                def.setName(targetKey);
+                def.setType("any");
+                def.setDescription("Output: " + varDef.get("name"));
+                def.setRequired(false);
+                params.put(targetKey, def);
+            }
+        }
         
-        ParameterDef resultDef = new ParameterDef();
-        resultDef.setName(outputKey);
-        resultDef.setType("any");
-        resultDef.setDescription("Code execution result");
-        resultDef.setRequired(true);
-        params.put(outputKey, resultDef);
-        
-        Map<String, String> outputMappings = getConfigValue("outputMappings", new HashMap<>());
-        for (Map.Entry<String, String> entry : outputMappings.entrySet()) {
+        // 如果没有配置输出变量，添加默认输出
+        if (params.isEmpty()) {
             ParameterDef def = new ParameterDef();
-            def.setName(entry.getValue());
+            def.setName("code_result");
             def.setType("any");
-            def.setDescription("Output: " + entry.getKey());
-            def.setRequired(false);
-            params.put(entry.getValue(), def);
+            def.setDescription("Code execution result");
+            def.setRequired(true);
+            params.put("code_result", def);
         }
         
         return params;

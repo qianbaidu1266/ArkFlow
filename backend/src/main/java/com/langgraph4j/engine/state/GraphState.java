@@ -28,11 +28,17 @@ public class GraphState {
         this.objectMapper = new ObjectMapper();
     }
     
+    private static final Object NULL_MARKER = new Object();
+    
     /**
      * 设置值
      */
     public void set(String key, Object value) {
-        data.put(key, value);
+        if (value == null) {
+            data.put(key, NULL_MARKER);
+        } else {
+            data.put(key, value);
+        }
     }
     
     /**
@@ -40,7 +46,8 @@ public class GraphState {
      */
     @SuppressWarnings("unchecked")
     public <T> T get(String key) {
-        return (T) data.get(key);
+        Object value = data.get(key);
+        return value == NULL_MARKER ? null : (T) value;
     }
     
     /**

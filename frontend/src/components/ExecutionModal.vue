@@ -374,8 +374,28 @@ function handleWebSocketEvent(event: ExecutionEvent) {
         snapshot.endTime = event.timestamp || Date.now()
         snapshot.duration = event.duration || 0
         snapshot.errorMessage = event.errorMessage || ''
+      } else {
+        // 如果失败节点还没有在列表中，添加它
+        snapshots.value.push({
+          id: `snapshot-${Date.now()}`,
+          nodeId: event.nodeId || '',
+          nodeType: event.nodeType || '',
+          nodeName: event.nodeName || '',
+          status: 'FAILED',
+          startTime: event.timestamp || Date.now(),
+          endTime: event.timestamp || Date.now(),
+          duration: event.duration || 0,
+          inputs: {},
+          outputs: {},
+          errorMessage: event.errorMessage || '',
+          metadata: {},
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0
+        })
       }
       emit('nodeStatus', event.nodeId || '', 'FAILED')
+      isExecuting.value = false
       break
       
     case 'execution_completed':

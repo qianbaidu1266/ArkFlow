@@ -20,7 +20,15 @@
           <div class="property-static">{{ nodeTypeName }}</div>
         </div>
         
-        <template v-for="config in nodeConfigs" :key="config.name">
+        <!-- Code 节点特殊配置 -->
+        <CodeNodeConfig
+          v-if="selectedNode?.type === 'CODE'"
+          :node-id="selectedNode.id"
+          :initial-config="selectedNode.config || {}"
+          @update="updateCodeNodeConfig"
+        />
+        
+        <template v-else v-for="config in nodeConfigs" :key="config.name">
           <div class="property-group">
             <label class="property-label">
               {{ config.label }}
@@ -130,6 +138,7 @@ import { computed, ref, watch } from 'vue'
 import { useWorkflowStore } from '@/stores/workflow'
 import { useCanvasStore } from '@/stores/canvas'
 import { getNodeTypeInfo, getNodeConfigDefs } from '@/config/nodeTypes'
+import CodeNodeConfig from './CodeNodeConfig.vue'
 
 const workflowStore = useWorkflowStore()
 const canvasStore = useCanvasStore()
@@ -210,6 +219,12 @@ function deleteNode() {
   if (selectedNode.value && confirm('确定要删除这个节点吗？')) {
     workflowStore.deleteNode(selectedNode.value.id)
     canvasStore.clearSelection()
+  }
+}
+
+function updateCodeNodeConfig(newConfig: Record<string, any>) {
+  if (selectedNode.value) {
+    workflowStore.updateNodeConfig(selectedNode.value.id, newConfig)
   }
 }
 </script>
