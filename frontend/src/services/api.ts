@@ -59,6 +59,26 @@ export const workflowApi = {
   async getNodeTypes(): Promise<any[]> {
     const response = await api.get('/node-types')
     return response.data
+  },
+
+  // 获取执行历史列表
+  async listExecutions(workflowId?: string, offset = 0, limit = 50): Promise<any[]> {
+    const params: Record<string, any> = { offset, limit }
+    if (workflowId) params.workflowId = workflowId
+    const response = await api.get('/executions', { params })
+    return response.data.executions || []
+  },
+
+  // 获取执行详情（含节点快照）
+  async getExecutionDetail(executionId: string): Promise<{ execution: any; snapshots: any[] }> {
+    const [executionRes, snapshotsRes] = await Promise.all([
+      api.get(`/executions/${executionId}`),
+      api.get(`/executions/${executionId}/snapshots`)
+    ])
+    return {
+      execution: executionRes.data,
+      snapshots: snapshotsRes.data.snapshots || []
+    }
   }
 }
 

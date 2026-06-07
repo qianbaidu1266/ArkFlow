@@ -20,9 +20,16 @@
           <div class="property-static">{{ nodeTypeName }}</div>
         </div>
         
+        <!-- 开始节点特殊配置 -->
+        <StartNodeConfig
+          v-if="selectedNode?.type === 'START'"
+          :initial-config="selectedNode.config || {}"
+          @update="updateStartNodeConfig"
+        />
+        
         <!-- Code 节点特殊配置 -->
         <CodeNodeConfig
-          v-if="selectedNode?.type === 'CODE'"
+          v-else-if="selectedNode?.type === 'CODE'"
           :node-id="selectedNode.id"
           :initial-config="selectedNode.config || {}"
           @update="updateCodeNodeConfig"
@@ -139,6 +146,7 @@ import { useWorkflowStore } from '@/stores/workflow'
 import { useCanvasStore } from '@/stores/canvas'
 import { getNodeTypeInfo, getNodeConfigDefs } from '@/config/nodeTypes'
 import CodeNodeConfig from './CodeNodeConfig.vue'
+import StartNodeConfig from './StartNodeConfig.vue'
 
 const workflowStore = useWorkflowStore()
 const canvasStore = useCanvasStore()
@@ -223,6 +231,12 @@ function deleteNode() {
 }
 
 function updateCodeNodeConfig(newConfig: Record<string, any>) {
+  if (selectedNode.value) {
+    workflowStore.updateNodeConfig(selectedNode.value.id, newConfig)
+  }
+}
+
+function updateStartNodeConfig(newConfig: Record<string, any>) {
   if (selectedNode.value) {
     workflowStore.updateNodeConfig(selectedNode.value.id, newConfig)
   }

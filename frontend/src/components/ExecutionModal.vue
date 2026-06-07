@@ -29,15 +29,43 @@
         <div class="panel-body">
           <div v-if="activeTab === 'input'" class="tab-content">
             <div v-if="inputVariables.length > 0" class="input-section">
-              <div class="section-label">输入变量</div>
+              <div class="section-label">输入参数</div>
               <div class="input-list">
-                <div v-for="variable in inputVariables" :key="variable" class="input-item">
-                  <label class="input-label">{{ variable }}</label>
+                <div v-for="variable in inputVariables" :key="variable.name" class="input-item">
+                  <label class="input-label">
+                    {{ variable.name }}
+                    <span v-if="variable.required" class="required">*</span>
+                    <span v-if="variable.type" class="type-tag">{{ variable.type }}</span>
+                  </label>
                   <input
-                    v-model="inputs[variable]"
+                    v-if="variable.type === 'string' || variable.type === 'number'"
+                    v-model="inputs[variable.name]"
+                    :type="variable.type === 'number' ? 'number' : 'text'"
+                    class="input-field"
+                    :placeholder="variable.description || `请输入 ${variable.name}`"
+                  />
+                  <textarea
+                    v-else-if="variable.type === 'object' || variable.type === 'array'"
+                    v-model="inputs[variable.name]"
+                    class="input-field textarea"
+                    :placeholder="variable.description || `请输入 JSON 格式的 ${variable.name}`"
+                    rows="3"
+                  ></textarea>
+                  <label v-else-if="variable.type === 'boolean'" class="checkbox-wrapper">
+                    <input
+                      v-model="inputs[variable.name]"
+                      type="checkbox"
+                      :checked="inputs[variable.name] === 'true'"
+                      @change="inputs[variable.name] = $event.target.checked ? 'true' : 'false'"
+                    />
+                    {{ variable.description || variable.name }}
+                  </label>
+                  <input
+                    v-else
+                    v-model="inputs[variable.name]"
                     type="text"
                     class="input-field"
-                    :placeholder="`请输入 ${variable}`"
+                    :placeholder="variable.description || `请输入 ${variable.name}`"
                   />
                 </div>
               </div>
@@ -288,7 +316,15 @@ const snapshots = ref<NodeSnapshot[]>([])
 const expandedTraces = ref<number[]>([])
 let ws: ExecutionWebSocket | null = null
 
-const inputVariables = computed(() => {
+interface InputVariable {
+  name: string
+  type: string
+  description?: string
+  required?: boolean
+  defaultValue?: string
+}
+
+const inputVariables = computed<InputVariable[]>(() => {
   if (!props.workflow) return []
   const startNode = Object.values(props.workflow.nodes).find(n => n.type === 'start')
   if (!startNode) return []
@@ -296,7 +332,11 @@ const inputVariables = computed(() => {
 })
 
 const canExecute = computed(() => {
-  return inputVariables.value.every(v => inputs.value[v]?.trim())
+  return inputVariables.value.every(v => {
+    if (!v.required) return true
+    const value = inputs.value[v.name]
+    return value !== undefined && value !== ''
+  })
 })
 
 watch(() => props.visible, (visible) => {
@@ -720,6 +760,22 @@ function getNodeTypeName(type: string): string {
   font-size: 13px;
   font-weight: 500;
   color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.input-label .required {
+  color: #ef4444;
+}
+
+.input-label .type-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: #e5e7eb;
+  color: #6b7280;
+  border-radius: 4px;
+  font-weight: 400;
 }
 
 .input-field {
@@ -734,6 +790,28 @@ function getNodeTypeName(type: string): string {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.input-field.textarea {
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
 }
 
 .empty-input {

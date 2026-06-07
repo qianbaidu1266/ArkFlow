@@ -261,6 +261,49 @@ public class JdbcSnapshotManager implements SnapshotManager {
         }
     }
     
+    @Override
+    public List<Map<String, Object>> listExecutions(String workflowId, int offset, int limit) {
+        StringBuilder sql = new StringBuilder("SELECT * FROM workflow_executions");
+        if (workflowId != null && !workflowId.isEmpty()) {
+            sql.append(" WHERE workflow_id = ?");
+        }
+        sql.append(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
+        
+        List<Map<String, Object>> executions = new ArrayList<>();
+        
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
+            
+            int paramIndex = 1;
+            if (workflowId != null && !workflowId.isEmpty()) {
+                stmt.setString(paramIndex++, workflowId);
+            }
+            stmt.setInt(paramIndex++, limit);
+            stmt.setInt(paramIndex, offset);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("id", rs.getString("id"));
+                    row.put("workflowId", rs.getString("workflow_id"));
+                    row.put("status", rs.getString("status"));
+                    row.put("startTime", rs.getLong("start_time"));
+                    row.put("endTime", rs.getObject("end_time") != null ? rs.getLong("end_time") : null);
+                    row.put("duration", rs.getObject("duration") != null ? rs.getLong("duration") : null);
+                    row.put("totalTokens", rs.getObject("total_tokens") != null ? rs.getInt("total_tokens") : null);
+                    row.put("error", rs.getString("error"));
+                    row.put("createdAt", rs.getLong("created_at"));
+                    executions.add(row);
+                }
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to list executions", e);
+        }
+        
+        return executions;
+    }
+    
     private NodeExecutionSnapshot mapResultSetToSnapshot(ResultSet rs) throws SQLException {
         return NodeExecutionSnapshot.builder()
             .id(rs.getString("id"))

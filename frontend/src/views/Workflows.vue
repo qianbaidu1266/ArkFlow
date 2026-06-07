@@ -2,19 +2,19 @@
   <div class="workflows-page">
     <header class="page-header">
       <div class="header-left">
-        <router-link to="/" class="back-link">← 返回</router-link>
-        <h1 class="page-title">工作流列表</h1>
+        <h1 class="page-title">工作流</h1>
+        <p class="page-desc">管理和编排 AI 工作流</p>
       </div>
       <router-link to="/editor" class="btn btn-primary">
         + 新建工作流
       </router-link>
     </header>
-    
+
     <main class="page-content">
       <div v-if="workflowStore.isLoading" class="loading">
         加载中...
       </div>
-      
+
       <div v-else-if="workflowStore.workflows.length === 0" class="empty-state">
         <div class="empty-icon">📋</div>
         <div class="empty-title">暂无工作流</div>
@@ -23,24 +23,24 @@
           创建工作流
         </router-link>
       </div>
-      
+
       <div v-else class="workflow-grid">
-        <div 
-          v-for="workflow in workflowStore.workflows" 
+        <div
+          v-for="workflow in workflowStore.workflows"
           :key="workflow.id"
           class="workflow-card"
         >
           <div class="card-header">
             <h3 class="workflow-name">{{ workflow.name }}</h3>
             <div class="workflow-actions">
-              <router-link 
+              <router-link
                 :to="`/editor/${workflow.id}`"
                 class="action-btn"
                 title="编辑"
               >
                 ✎
               </router-link>
-              <button 
+              <button
                 class="action-btn delete"
                 title="删除"
                 @click="deleteWorkflow(workflow.id)"
@@ -49,7 +49,7 @@
               </button>
             </div>
           </div>
-          
+
           <div class="card-body">
             <div class="workflow-meta">
               <span class="meta-item">
@@ -63,7 +63,7 @@
               {{ workflow.description }}
             </div>
           </div>
-          
+
           <div class="card-footer">
             <span class="update-time">
               更新于 {{ formatTime(workflow.updatedAt) }}
@@ -100,202 +100,184 @@ function formatTime(timestamp?: number): string {
 
 <style scoped>
 .workflows-page {
-  min-height: 100vh;
-  background: #f8fafc;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .page-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 16px 32px;
-  background: white;
-  border-bottom: 1px solid #e2e8f0;
+  align-items: center;
+  margin-bottom: 24px;
 }
 
 .header-left {
   display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.back-link {
-  color: #64748b;
-  text-decoration: none;
-  font-size: 14px;
-  
-  &:hover {
-    color: #3b82f6;
-  }
+  flex-direction: column;
+  gap: 4px;
 }
 
 .page-title {
   font-size: 20px;
   font-weight: 600;
-  color: #1e293b;
+  color: #1f2937;
+}
+
+.page-desc {
+  font-size: 13px;
+  color: #6b7280;
 }
 
 .btn {
-  padding: 10px 20px;
+  padding: 8px 16px;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
-  text-decoration: none;
   cursor: pointer;
-  transition: all 0.2s;
   border: none;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .btn-primary {
-  background: #3b82f6;
-  color: white;
-  
-  &:hover {
-    background: #2563eb;
-  }
+  background: #3B82F6;
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background: #2563EB;
 }
 
 .page-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 32px;
+  min-height: 400px;
 }
 
 .loading {
   text-align: center;
   padding: 64px;
-  color: #94a3b8;
+  color: #9ca3af;
+  background: #ffffff;
+  border-radius: 16px;
 }
 
 .empty-state {
   text-align: center;
-  padding: 96px 32px;
-  background: white;
+  padding: 80px 40px;
+  background: #ffffff;
   border-radius: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .empty-icon {
-  font-size: 64px;
+  font-size: 48px;
   margin-bottom: 16px;
 }
 
 .empty-title {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 600;
-  color: #1e293b;
+  color: #1f2937;
   margin-bottom: 8px;
 }
 
 .empty-desc {
-  font-size: 14px;
-  color: #94a3b8;
+  font-size: 13px;
+  color: #6b7280;
   margin-bottom: 24px;
 }
 
 .workflow-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 24px;
+  gap: 20px;
 }
 
 .workflow-card {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  transition: all 0.2s;
-  overflow: hidden;
-  
-  &:hover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-  }
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  transition: box-shadow 0.2s;
+}
+
+.workflow-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .card-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid #f1f5f9;
+  align-items: flex-start;
+  margin-bottom: 12px;
 }
 
 .workflow-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
-  color: #1e293b;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: #1f2937;
 }
 
 .workflow-actions {
   display: flex;
-  gap: 8px;
+  gap: 4px;
 }
 
 .action-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
+  width: 28px;
+  height: 28px;
   border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  color: #6b7280;
   text-decoration: none;
-  color: #64748b;
-  
-  &:hover {
-    background: #f1f5f9;
-    color: #3b82f6;
-  }
-  
-  &.delete:hover {
-    background: #fee2e2;
-    color: #ef4444;
-  }
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+}
+
+.action-btn:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.action-btn.delete:hover {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 .card-body {
-  padding: 16px 20px;
+  margin-bottom: 12px;
 }
 
 .workflow-meta {
   display: flex;
-  gap: 16px;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 8px;
 }
 
 .meta-item {
-  font-size: 13px;
-  color: #64748b;
-  background: #f8fafc;
-  padding: 4px 10px;
+  font-size: 12px;
+  color: #6b7280;
+  padding: 2px 8px;
+  background: #f3f4f6;
   border-radius: 4px;
 }
 
 .workflow-desc {
   font-size: 13px;
-  color: #94a3b8;
+  color: #6b7280;
   line-height: 1.5;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 
 .card-footer {
-  padding: 12px 20px;
-  background: #f8fafc;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid #f3f4f6;
+  padding-top: 12px;
 }
 
 .update-time {
   font-size: 12px;
-  color: #94a3b8;
+  color: #9ca3af;
 }
 </style>

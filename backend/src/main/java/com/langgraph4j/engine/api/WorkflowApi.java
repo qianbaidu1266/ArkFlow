@@ -74,6 +74,7 @@ public class WorkflowApi extends AbstractVerticle {
         router.delete("/api/workflows/:id").handler(this::deleteWorkflow);
         
         router.post("/api/workflows/:id/execute").handler(this::executeWorkflow);
+        router.get("/api/executions").handler(this::listExecutions);
         router.get("/api/executions/:id").handler(this::getExecution);
         router.get("/api/executions/:id/checkpoints").handler(this::getCheckpoints);
         router.get("/api/executions/:id/snapshots").handler(this::getExecutionSnapshots);
@@ -484,6 +485,59 @@ public class WorkflowApi extends AbstractVerticle {
                 
         } catch (Exception e) {
             log.error("Failed to get node snapshot", e);
+            ctx.response()
+                .setStatusCode(500)
+                .end(new JsonObject().put("error", e.getMessage()).encode());
+        }
+    }
+    
+    /**
+     * 列出执行历史
+     */
+    private void listExecutions(RoutingContext ctx) {
+        if (snapshotManager == null) {
+            ctx.response()
+                .setStatusCode(503)
+                .end(new JsonObject().put("error", "Snapshot manager not configured").encode());
+            return;
+        }
+        
+        try {
+            String workflowId = ctx.request().getParam("workflowId");
+            int offset = Integer.parseInt(ctx.request().getParam("offset", "0"));
+            int limit = Integer.parseInt(ctx.request().getParam("limit", "50"));
+            
+            List<Map<String, Object>> executions = snapshotManager.listExecutions(workflowId, offset, limit);
+            
+            ObjectNode response = objectMapper.createObjectNode();
+            ArrayNode executionsArray = response.putArray("executions");
+            
+            for (Map<String, Object> exec : executions) {
+                ObjectNode execNode = executionsArray.addObject();
+                execNode.put("id", (String) exec.get("id"));
+                execNode.put("workflowId", (String) exec.get("workflowId"));
+                execNode.put("status", (String) exec.get("status"));
+                execNode.put("startTime", (Long) exec.get("startTime"));
+                if (exec.get("endTime") != null) {
+                    execNode.put("endTime", (Long) exec.get("endTime"));
+                }
+                if (exec.get("duration") != null) {
+                    execNode.put("duration", (Long) exec.get("duration"));
+                }
+                if (exec.get("totalTokens") != null) {
+                    execNode.put("totalTokens", (Integer) exec.get("totalTokens"));
+                }
+                if (exec.get("error") != null) {
+                    execNode.put("error", (String) exec.get("error"));
+                }
+                execNode.put("createdAt", (Long) exec.get("createdAt"));
+            }
+            
+            ctx.response()
+                .putHeader("Content-Type", "application/json")
+                .end(response.toString());
+        } catch (Exception e) {
+            log.error("Failed to list executions", e);
             ctx.response()
                 .setStatusCode(500)
                 .end(new JsonObject().put("error", e.getMessage()).encode());

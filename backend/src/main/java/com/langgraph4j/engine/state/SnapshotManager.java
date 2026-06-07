@@ -26,4 +26,6 @@ public interface SnapshotManager {
     void updateExecutionResult(String executionId, Map<String, Object> output, int totalTokens);
     
     void updateExecutionError(String executionId, String error);
+    
+    List<Map<String, Object>> listExecutions(String workflowId, int offset, int limit);
 }
