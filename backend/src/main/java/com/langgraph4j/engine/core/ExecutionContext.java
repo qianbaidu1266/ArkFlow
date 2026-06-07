@@ -3,6 +3,7 @@ package com.langgraph4j.engine.core;
 import com.langgraph4j.engine.model.LLMClient;
 import com.langgraph4j.engine.model.EmbeddingClient;
 import com.langgraph4j.engine.rag.KnowledgeBase;
+import com.langgraph4j.engine.rag.KnowledgeBaseManager;
 import com.langgraph4j.engine.state.CheckpointManager;
 import com.langgraph4j.engine.state.GraphState;
 import com.langgraph4j.engine.state.SnapshotManager;
@@ -28,6 +29,7 @@ public class ExecutionContext {
     private final LLMClient llmClient;
     private final EmbeddingClient embeddingClient;
     private final KnowledgeBase knowledgeBase;
+    private final KnowledgeBaseManager knowledgeBaseManager;
     private final ExecutionEventBus eventBus;
     
     @Builder.Default
@@ -108,6 +110,7 @@ public class ExecutionContext {
             .llmClient(llmClient)
             .embeddingClient(embeddingClient)
             .knowledgeBase(knowledgeBase)
+            .knowledgeBaseManager(knowledgeBaseManager)
             .eventBus(eventBus)
             .variables(new ConcurrentHashMap<>(variables))
             .metadata(new ConcurrentHashMap<>(metadata))

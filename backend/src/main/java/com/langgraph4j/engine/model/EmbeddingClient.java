@@ -13,6 +13,8 @@ import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.core5.util.Timeout;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +47,13 @@ public class EmbeddingClient {
         this.model = model;
         this.dimensions = dimensions;
         this.defaultParams = defaultParams;
-        this.httpClient = HttpClients.createDefault();
+        RequestConfig requestConfig = RequestConfig.custom()
+                .setConnectTimeout(Timeout.ofSeconds(10))
+                .setResponseTimeout(Timeout.ofSeconds(60))
+                .build();
+        this.httpClient = HttpClients.custom()
+                .setDefaultRequestConfig(requestConfig)
+                .build();
         this.objectMapper = new ObjectMapper();
         this.executorService = Executors.newFixedThreadPool(10);
     }
@@ -81,9 +89,12 @@ public class EmbeddingClient {
     
     private List<float[]> doEmbedBatch(List<String> texts) {
         try {
+            log.debug("Embedding request: model={}, texts={}", model, texts.size());
             HttpPost request = buildRequest(texts);
-            
+
+            log.debug("Sending embedding request to {}", baseUrl);
             try (CloseableHttpResponse response = httpClient.execute(request)) {
+                log.debug("Embedding response status: {}", response.getCode());
                 String responseBody = EntityUtils.toString(response.getEntity());
                 JsonNode jsonNode = objectMapper.readTree(responseBody);
                 
@@ -113,11 +124,12 @@ public class EmbeddingClient {
             }
         }
         
-        // 添加维度参数
-        if (dimensions != null) {
-            requestBody.put("dimensions", dimensions);
-        }
-        
+        // 维度参数：Ollama 不支持 dimensions 参数，由模型自动决定
+        // OpenAI 兼容 API 支持此参数，按需启用
+        // if (dimensions != null) {
+        //     requestBody.put("dimensions", dimensions);
+        // }
+
         // 默认参数
         if (defaultParams != null) {
             defaultParams.forEach((k, v) -> {

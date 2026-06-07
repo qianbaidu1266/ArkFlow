@@ -15,6 +15,8 @@ public class EngineConfig {
     private ServerConfig server;
     private DatabaseConfig mysql;
     private DatabaseConfig pgvector;
+    private MilvusConfig milvus;
+    private RerankerConfig reranker;
     private LLMConfig llm;
     private EmbeddingConfig embedding;
     private RedisConfig redis;
@@ -27,6 +29,8 @@ public class EngineConfig {
             .server(ServerConfig.fromProperties(props))
             .mysql(DatabaseConfig.mysqlFromProperties(props))
             .pgvector(DatabaseConfig.pgvectorFromProperties(props))
+            .milvus(MilvusConfig.fromProperties(props))
+            .reranker(RerankerConfig.fromProperties(props))
             .llm(LLMConfig.fromProperties(props))
             .embedding(EmbeddingConfig.fromProperties(props))
             .redis(RedisConfig.fromProperties(props))
@@ -67,7 +71,14 @@ public class EngineConfig {
             "EMBEDDING_BASE_URL:embedding.baseUrl",
             "EMBEDDING_API_KEY:embedding.apiKey",
             "EMBEDDING_MODEL:embedding.model",
-            "EMBEDDING_DIMENSIONS:embedding.dimensions"
+            "EMBEDDING_DIMENSIONS:embedding.dimensions",
+            "MILVUS_HOST:milvus.host",
+            "MILVUS_PORT:milvus.port",
+            "MILVUS_TOKEN:milvus.token",
+            "MILVUS_ENABLED:milvus.enabled",
+            "RERANKER_BASE_URL:reranker.baseUrl",
+            "RERANKER_API_KEY:reranker.apiKey",
+            "RERANKER_MODEL:reranker.model"
         };
         
         for (String mapping : envMappings) {
@@ -111,6 +122,19 @@ public class EngineConfig {
             log.info("Redis configuration: enabled, uri={}", redis.getUri());
         } else {
             log.info("Redis configuration: disabled");
+        }
+
+        if (milvus.isValid()) {
+            log.info("Milvus configuration: enabled, host={}:{}, BM25={}, Reranker={}",
+                    milvus.getHost(), milvus.getPort(), milvus.isEnableBM25(), milvus.isEnableReranker());
+        } else {
+            log.info("Milvus configuration: disabled");
+        }
+
+        if (reranker.isValid()) {
+            log.info("Reranker configuration: enabled, model={}", reranker.getModel());
+        } else {
+            log.info("Reranker configuration: disabled");
         }
     }
 }

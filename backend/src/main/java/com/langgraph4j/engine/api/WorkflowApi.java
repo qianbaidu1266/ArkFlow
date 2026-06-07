@@ -31,6 +31,7 @@ public class WorkflowApi extends AbstractVerticle {
     private final int port;
     private SnapshotManager snapshotManager;
     private ExecutionEventBus eventBus;
+    private KnowledgeApi knowledgeApi;
     
     public WorkflowApi(WorkflowEngine engine, int port) {
         this.engine = engine;
@@ -44,6 +45,10 @@ public class WorkflowApi extends AbstractVerticle {
     
     public void setEventBus(ExecutionEventBus eventBus) {
         this.eventBus = eventBus;
+    }
+    
+    public void setKnowledgeApi(KnowledgeApi knowledgeApi) {
+        this.knowledgeApi = knowledgeApi;
     }
     
     @Override
@@ -81,6 +86,11 @@ public class WorkflowApi extends AbstractVerticle {
         router.get("/api/executions/:id/snapshots/:nodeId").handler(this::getNodeSnapshot);
         
         router.get("/api/node-types").handler(this::listNodeTypes);
+        
+        // 挂载知识库 API 路由
+        if (knowledgeApi != null) {
+            knowledgeApi.mountRoutes(router);
+        }
         
         server.requestHandler(router);
         

@@ -3,12 +3,15 @@ package com.langgraph4j.engine.di;
 import com.google.inject.AbstractModule;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
+import com.langgraph4j.engine.api.KnowledgeApi;
 import com.langgraph4j.engine.api.WorkflowApi;
 import com.langgraph4j.engine.config.ServerConfig;
 import com.langgraph4j.engine.core.WorkflowEngine;
 import com.langgraph4j.engine.model.EmbeddingClient;
 import com.langgraph4j.engine.model.LLMClient;
 import com.langgraph4j.engine.rag.KnowledgeBase;
+import com.langgraph4j.engine.rag.KnowledgeBaseManager;
+import com.langgraph4j.engine.repository.KnowledgeBaseRepository;
 import com.langgraph4j.engine.repository.WorkflowRepository;
 import com.langgraph4j.engine.state.CheckpointManager;
 import com.langgraph4j.engine.state.SnapshotManager;
@@ -52,6 +55,7 @@ public class EngineModule extends AbstractModule {
         private final LLMClient llmClient;
         private final EmbeddingClient embeddingClient;
         private final KnowledgeBase knowledgeBase;
+        private final KnowledgeBaseManager kbManager;
         private final ExecutionEventBus eventBus;
         
         @com.google.inject.Inject
@@ -62,6 +66,7 @@ public class EngineModule extends AbstractModule {
                 @Nullable LLMClient llmClient,
                 @Nullable EmbeddingClient embeddingClient,
                 @Nullable KnowledgeBase knowledgeBase,
+                @Nullable KnowledgeBaseManager kbManager,
                 @Nullable ExecutionEventBus eventBus) {
             this.repository = repository;
             this.snapshotManager = snapshotManager;
@@ -69,6 +74,7 @@ public class EngineModule extends AbstractModule {
             this.llmClient = llmClient;
             this.embeddingClient = embeddingClient;
             this.knowledgeBase = knowledgeBase;
+            this.kbManager = kbManager;
             this.eventBus = eventBus;
         }
         
@@ -82,6 +88,7 @@ public class EngineModule extends AbstractModule {
             if (llmClient != null) engine.setLlmClient(llmClient);
             if (embeddingClient != null) engine.setEmbeddingClient(embeddingClient);
             if (knowledgeBase != null) engine.setKnowledgeBase(knowledgeBase);
+            if (kbManager != null) engine.setKnowledgeBaseManager(kbManager);
             if (eventBus != null) engine.setEventBus(eventBus);
             return engine;
         }
@@ -93,17 +100,23 @@ public class EngineModule extends AbstractModule {
         private final ServerConfig serverConfig;
         private final SnapshotManager snapshotManager;
         private final ExecutionEventBus eventBus;
+        private final KnowledgeBaseManager kbManager;
+        private final KnowledgeBaseRepository kbRepository;
         
         @com.google.inject.Inject
         public WorkflowApiProvider(
                 WorkflowEngine engine,
                 ServerConfig serverConfig,
                 @Nullable SnapshotManager snapshotManager,
-                @Nullable ExecutionEventBus eventBus) {
+                @Nullable ExecutionEventBus eventBus,
+                @Nullable KnowledgeBaseManager kbManager,
+                @Nullable KnowledgeBaseRepository kbRepository) {
             this.engine = engine;
             this.serverConfig = serverConfig;
             this.snapshotManager = snapshotManager;
             this.eventBus = eventBus;
+            this.kbManager = kbManager;
+            this.kbRepository = kbRepository;
         }
         
         @Override
@@ -112,6 +125,11 @@ public class EngineModule extends AbstractModule {
             WorkflowApi api = new WorkflowApi(engine, serverConfig.getPort());
             if (snapshotManager != null) api.setSnapshotManager(snapshotManager);
             if (eventBus != null) api.setEventBus(eventBus);
+            if (kbManager != null) {
+                api.setKnowledgeApi(new KnowledgeApi(kbManager));
+            } else if (kbRepository != null) {
+                api.setKnowledgeApi(new KnowledgeApi(kbRepository));
+            }
             return api;
         }
     }

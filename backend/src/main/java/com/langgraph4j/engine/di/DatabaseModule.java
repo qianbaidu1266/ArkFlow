@@ -6,6 +6,7 @@ import com.google.inject.AbstractModule;
 import com.google.inject.ProvisionException;
 import com.google.inject.name.Named;
 import com.langgraph4j.engine.config.DatabaseConfig;
+import com.langgraph4j.engine.repository.KnowledgeBaseRepository;
 import com.langgraph4j.engine.repository.WorkflowRepository;
 import com.langgraph4j.engine.state.JdbcSnapshotManager;
 import com.langgraph4j.engine.state.SnapshotManager;
@@ -20,6 +21,7 @@ public class DatabaseModule extends AbstractModule {
     protected void configure() {
         bind(WorkflowRepository.class).toProvider(WorkflowRepositoryProvider.class).in(Singleton.class);
         bind(SnapshotManager.class).toProvider(SnapshotManagerProvider.class).in(Singleton.class);
+        bind(KnowledgeBaseRepository.class).toProvider(KnowledgeBaseRepositoryProvider.class).in(Singleton.class);
     }
     
     @Singleton
@@ -70,6 +72,32 @@ public class DatabaseModule extends AbstractModule {
                 return new JdbcSnapshotManager(config.getUrl(), config.getUsername(), config.getPassword());
             } catch (Exception e) {
                 throw new ProvisionException("Failed to create SnapshotManager: " + e.getMessage(), e);
+            }
+        }
+    }
+    
+    @Singleton
+    static class KnowledgeBaseRepositoryProvider implements Provider<KnowledgeBaseRepository> {
+        
+        private final DatabaseConfig config;
+        
+        @com.google.inject.Inject
+        public KnowledgeBaseRepositoryProvider(@Named("mysql") DatabaseConfig config) {
+            this.config = config;
+        }
+        
+        @Override
+        public KnowledgeBaseRepository get() {
+            if (!config.isValid()) {
+                log.info("MySQL not configured, knowledge base repository disabled");
+                return null;
+            }
+            
+            try {
+                log.info("Initializing KnowledgeBase repository: {}", config.getUrl());
+                return new KnowledgeBaseRepository(config.getUrl(), config.getUsername(), config.getPassword());
+            } catch (Exception e) {
+                throw new ProvisionException("Failed to create KnowledgeBaseRepository: " + e.getMessage(), e);
             }
         }
     }

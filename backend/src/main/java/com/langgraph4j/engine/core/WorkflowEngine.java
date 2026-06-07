@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.langgraph4j.engine.model.LLMClient;
 import com.langgraph4j.engine.model.EmbeddingClient;
 import com.langgraph4j.engine.rag.KnowledgeBase;
+import com.langgraph4j.engine.rag.KnowledgeBaseManager;
 import com.langgraph4j.engine.repository.WorkflowRepository;
 import com.langgraph4j.engine.state.CheckpointManager;
 import com.langgraph4j.engine.state.GraphState;
@@ -39,6 +40,7 @@ public class WorkflowEngine {
     private LLMClient llmClient;
     private EmbeddingClient embeddingClient;
     private KnowledgeBase knowledgeBase;
+    private KnowledgeBaseManager knowledgeBaseManager;
     private WorkflowRepository repository;
     private ExecutionEventBus eventBus;
     
@@ -275,6 +277,10 @@ public class WorkflowEngine {
             builder.knowledgeBase(knowledgeBase);
         }
         
+        if (knowledgeBaseManager != null) {
+            builder.knowledgeBaseManager(knowledgeBaseManager);
+        }
+        
         if (eventBus != null) {
             builder.eventBus(eventBus);
         }
@@ -320,6 +326,10 @@ public class WorkflowEngine {
     
     public void setKnowledgeBase(KnowledgeBase knowledgeBase) {
         this.knowledgeBase = knowledgeBase;
+    }
+    
+    public void setKnowledgeBaseManager(KnowledgeBaseManager knowledgeBaseManager) {
+        this.knowledgeBaseManager = knowledgeBaseManager;
     }
     
     public void setEventBus(ExecutionEventBus eventBus) {

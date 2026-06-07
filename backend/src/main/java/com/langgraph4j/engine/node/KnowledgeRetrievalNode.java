@@ -4,6 +4,7 @@ import com.langgraph4j.engine.core.ExecutionContext;
 import com.langgraph4j.engine.core.Node;
 import com.langgraph4j.engine.core.NodeType;
 import com.langgraph4j.engine.rag.KnowledgeBase;
+import com.langgraph4j.engine.rag.KnowledgeBaseManager;
 import com.langgraph4j.engine.state.GraphState;
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,7 +36,7 @@ public class KnowledgeRetrievalNode extends Node {
                 String queryVariable = getConfigValue("queryVariable", null);
                 int topK = getConfigValue("topK", 5);
                 float scoreThreshold = getConfigValue("scoreThreshold", 0.7f);
-                String searchType = getConfigValue("searchType", "similarity");
+                String searchType = getConfigValue("searchType", "similarity");  // similarity, bm25, hybrid
                 String outputKey = getConfigValue("outputKey", "retrieved_context");
                 String outputFormat = getConfigValue("outputFormat", "text");
                 
@@ -55,7 +56,19 @@ public class KnowledgeRetrievalNode extends Node {
                     return newState;
                 }
                 
-                KnowledgeBase knowledgeBase = context.getKnowledgeBase();
+                KnowledgeBase knowledgeBase = null;
+                
+                // 优先使用 KnowledgeBaseManager 按 ID 获取知识库
+                KnowledgeBaseManager kbManager = context.getKnowledgeBaseManager();
+                if (kbManager != null && knowledgeBaseId != null && !knowledgeBaseId.isEmpty()) {
+                    knowledgeBase = kbManager.getKnowledgeBase(knowledgeBaseId);
+                }
+                
+                // 回退到全局单例知识库
+                if (knowledgeBase == null) {
+                    knowledgeBase = context.getKnowledgeBase();
+                }
+                
                 if (knowledgeBase == null) {
                     throw new RuntimeException("Knowledge base not configured");
                 }
