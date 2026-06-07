@@ -14,28 +14,43 @@
             RAG 知识库检索、条件分支、代码执行等，拖拽连线构建复杂 AI 工作流。
           </p>
         </div>
-        <div class="hero-stats">
-          <div class="stat-card">
-            <div class="stat-icon">🤖</div>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-card stat-blue">
+          <div class="stat-left">
+            <div class="stat-icon-bg">
+              <WorkflowIcon />
+            </div>
             <div class="stat-info">
-              <div class="stat-value">{{ stats.workflowCount }}</div>
               <div class="stat-label">工作流</div>
+              <div class="stat-value">{{ stats.workflowCount }}</div>
             </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon">📚</div>
+          <div class="stat-arrow">→</div>
+        </div>
+        <div class="stat-card stat-purple">
+          <div class="stat-left">
+            <div class="stat-icon-bg">
+              <KnowledgeIcon />
+            </div>
             <div class="stat-info">
-              <div class="stat-value">{{ stats.knowledgeCount }}</div>
               <div class="stat-label">知识库</div>
+              <div class="stat-value">{{ stats.knowledgeCount }}</div>
             </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon">⚡</div>
+          <div class="stat-arrow">→</div>
+        </div>
+        <div class="stat-card stat-green">
+          <div class="stat-left">
+            <div class="stat-icon-bg">
+              <RunIcon />
+            </div>
             <div class="stat-info">
-              <div class="stat-value">{{ stats.runCount }}</div>
               <div class="stat-label">运行次数</div>
+              <div class="stat-value">{{ stats.runCount }}</div>
             </div>
           </div>
+          <div class="stat-arrow">→</div>
         </div>
       </div>
     </section>
@@ -147,25 +162,59 @@ onMounted(async () => {
 })
 </script>
 
+<script lang="ts">
+// 内联 SVG 图标组件
+const WorkflowIcon = {
+  render() {
+    return h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', width: '20', height: '20' }, [
+      h('rect', { x: '3', y: '3', width: '7', height: '7', rx: '1' }),
+      h('rect', { x: '14', y: '3', width: '7', height: '7', rx: '1' }),
+      h('rect', { x: '14', y: '14', width: '7', height: '7', rx: '1' }),
+      h('rect', { x: '3', y: '14', width: '7', height: '7', rx: '1' }),
+    ])
+  }
+}
+
+const KnowledgeIcon = {
+  render() {
+    return h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', width: '20', height: '20' }, [
+      h('path', { d: 'M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20' }),
+    ])
+  }
+}
+
+const RunIcon = {
+  render() {
+    return h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', width: '20', height: '20' }, [
+      h('circle', { cx: '12', cy: '12', r: '10' }),
+      h('polyline', { points: '12 6 12 12 16 14' }),
+    ])
+  }
+}
+
+import { h } from 'vue'
+</script>
+
 <style scoped>
 .dashboard {
   max-width: 1200px;
   margin: 0 auto;
 }
 
-/* Hero 区域 */
+/* Hero 区域 - 左右布局 */
 .hero-section {
   margin-bottom: 32px;
+  display: flex;
+  gap: 20px;
 }
 
 .hero-card {
+  flex: 0 0 70%;
   background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #334155 100%);
   border-radius: 16px;
   padding: 40px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 40px;
 }
 
 .hero-content {
@@ -197,36 +246,97 @@ onMounted(async () => {
   line-height: 1.6;
 }
 
+/* 右侧统计卡片 - 垂直排列 */
 .hero-stats {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  width: 200px;
+  flex: 1;
 }
 
 .stat-card {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: 20px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.stat-icon {
-  font-size: 24px;
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.stat-blue {
+  background: linear-gradient(135deg, #DBEAFE 0%, #EFF6FF 100%);
+  border: 1px solid #BFDBFE;
+}
+
+.stat-purple {
+  background: linear-gradient(135deg, #E0E7FF 0%, #EEF2FF 100%);
+  border: 1px solid #C7D2FE;
+}
+
+.stat-green {
+  background: linear-gradient(135deg, #D1FAE5 0%, #ECFDF5 100%);
+  border: 1px solid #A7F3D0;
+}
+
+.stat-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.stat-icon-bg {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.stat-blue .stat-icon-bg {
+  background: #3B82F6;
+  color: #ffffff;
+}
+
+.stat-purple .stat-icon-bg {
+  background: #6366F1;
+  color: #ffffff;
+}
+
+.stat-green .stat-icon-bg {
+  background: #10B981;
+  color: #ffffff;
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #6B7280;
 }
 
 .stat-value {
   font-size: 24px;
   font-weight: 700;
-  color: #ffffff;
+  color: #1F2937;
 }
 
-.stat-label {
-  font-size: 12px;
-  color: #94a3b8;
+.stat-arrow {
+  font-size: 18px;
+  color: #9CA3AF;
+  font-weight: 300;
 }
 
 /* 快速开始 */
@@ -254,7 +364,7 @@ onMounted(async () => {
 .section-subtitle {
   font-size: 13px;
   color: #6b7280;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
 }
 
 .steps {
@@ -265,7 +375,8 @@ onMounted(async () => {
 
 .step-item {
   flex: 1;
-  padding: 0 24px;
+  padding: 0 32px;
+  position: relative;
 }
 
 .step-item:first-child {
@@ -276,18 +387,81 @@ onMounted(async () => {
   padding-right: 0;
 }
 
+/* 左侧彩色竖线 */
+.step-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 2px;
+}
+
+.step-item:first-child::before {
+  display: none;
+}
+
+.step-item:nth-child(1)::before {
+  background: #93C5FD;
+}
+
+.step-item:nth-child(3)::before {
+  background: #A5B4FC;
+}
+
+.step-item:nth-child(5)::before {
+  background: #86EFAC;
+}
+
 .step-number {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
-  color: #e5e7eb;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  position: relative;
+  display: block;
+}
+
+/* 数字下方横线 - 贯穿整个步骤宽度 */
+.step-number::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.step-item:nth-child(1) .step-number {
+  color: #93C5FD;
+}
+
+.step-item:nth-child(1) .step-number::after {
+  background: #93C5FD;
+}
+
+.step-item:nth-child(3) .step-number {
+  color: #A5B4FC;
+}
+
+.step-item:nth-child(3) .step-number::after {
+  background: #A5B4FC;
+}
+
+.step-item:nth-child(5) .step-number {
+  color: #86EFAC;
+}
+
+.step-item:nth-child(5) .step-number::after {
+  background: #86EFAC;
 }
 
 .step-title {
   font-size: 14px;
   font-weight: 600;
   color: #1f2937;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .step-desc {

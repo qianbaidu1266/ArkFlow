@@ -1,0 +1,5 @@
+# Project Instructions
+
+## Git 提交规范
+- 用户要求提交代码时，必须先 commit 然后 push，不要只 commit 不 push
+- commit message 使用中文，格式：`feat:` / `fix:` / `style:` / `refactor:` 等前缀

@@ -9,7 +9,7 @@
           <circle cx="16" cy="16" r="3" fill="white"/>
           <path d="M16 13V8M16 24V19M19 16H24M8 16H13" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
         </svg>
-        <span class="brand-text">LangGraph4J</span>
+        <span class="brand-text">ArkFlow</span>
       </div>
 
       <nav class="topnav">
@@ -144,13 +144,13 @@ const systemStatusText = computed(() => '系统就绪')
 }
 
 .topnav-item.active {
-  background: #60A5FA;
+  background: #3B82F6;
   color: #fff;
-  box-shadow: 0 4px 12px rgba(96, 165, 250, 0.3);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .topnav-item.active:hover {
-  background: #3B82F6;
+  background: #2563EB;
 }
 
 /* 右侧操作区 */
