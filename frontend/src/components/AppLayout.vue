@@ -12,16 +12,16 @@
         <span class="brand-text">LangGraph4J</span>
       </div>
 
-      <nav class="nav-tabs">
+      <nav class="topnav">
         <router-link
           v-for="tab in tabs"
           :key="tab.path"
           :to="tab.path"
-          class="nav-tab"
+          class="topnav-item"
           :class="{ active: isActive(tab.path) }"
         >
-          <svg class="tab-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" v-html="tab.svgPath" />
-          <span class="tab-label">{{ tab.label }}</span>
+          <component :is="tab.icon" :size="16" />
+          <span>{{ tab.label }}</span>
         </router-link>
       </nav>
 
@@ -43,40 +43,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { LayoutDashboard, GitBranch, History, BookOpen, Box, Settings } from 'lucide-vue-next'
 
 const route = useRoute()
 
 const tabs = [
-  {
-    path: '/',
-    label: '总览',
-    svgPath: '<rect x="2" y="2" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="11" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>'
-  },
-  {
-    path: '/workflows',
-    label: '工作流',
-    svgPath: '<circle cx="5" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/><circle cx="15" cy="5" r="2.5" stroke="currentColor" stroke-width="1.5"/><circle cx="15" cy="15" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M7.5 10H12.5M12.5 5L7.5 8.5M12.5 15L7.5 11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'
-  },
-  {
-    path: '/history',
-    label: '运行历史',
-    svgPath: '<circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M10 6V10L13 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
-  },
-  {
-    path: '/knowledge',
-    label: '知识库',
-    svgPath: '<path d="M3 4.5C3 3.67 3.67 3 4.5 3H8L10 5H15.5C16.33 5 17 5.67 17 6.5V15.5C17 16.33 16.33 17 15.5 17H4.5C3.67 17 3 16.33 3 15.5V4.5Z" stroke="currentColor" stroke-width="1.5"/><path d="M7 10H13M7 13H11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'
-  },
-  {
-    path: '/models',
-    label: '模型',
-    svgPath: '<path d="M10 2L17.5 6V14L10 18L2.5 14V6L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 10L17.5 6M10 10V18M10 10L2.5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>'
-  },
-  {
-    path: '/settings',
-    label: '设置',
-    svgPath: '<circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 2V4M10 16V18M2 10H4M16 10H18M4.22 4.22L5.64 5.64M14.36 14.36L15.78 15.78M15.78 4.22L14.36 5.64M5.64 14.36L4.22 15.78" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'
-  },
+  { path: '/', label: '总览', icon: LayoutDashboard },
+  { path: '/workflows', label: '工作流', icon: GitBranch },
+  { path: '/history', label: '运行历史', icon: History },
+  { path: '/knowledge', label: '知识库', icon: BookOpen },
+  { path: '/models', label: '模型', icon: Box },
+  { path: '/settings', label: '设置', icon: Settings },
 ]
 
 function isActive(path: string): boolean {
@@ -101,9 +78,9 @@ const systemStatusText = computed(() => '系统就绪')
 
 /* 顶部导航栏 */
 .top-nav {
-  height: 56px;
-  background: linear-gradient(135deg, #EFF6FF 0%, #F0F7FF 50%, #F8FAFC 100%);
-  border-bottom: 1px solid #DBEAFE;
+  height: 80px;
+  background: #f5f5f7;
+  border-bottom: 1px solid #e5e7eb;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -132,45 +109,48 @@ const systemStatusText = computed(() => '系统就绪')
   letter-spacing: -0.3px;
 }
 
-/* Tab 导航 */
-.nav-tabs {
-  display: flex;
+/* 胶囊导航 */
+.topnav {
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid rgba(226, 232, 240, 1);
+  border-radius: 999px;
+  background: rgba(241, 245, 249, 0.95);
 }
 
-.nav-tab {
-  display: flex;
+.topnav-item {
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 14px;
-  border-radius: 8px;
-  color: #64748B;
+  justify-content: center;
+  gap: 6px;
+  min-width: 88px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
   text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.15s ease;
+  font-size: 13px;
+  font-weight: 600;
+  transition: 0.2s ease;
+  cursor: pointer;
+  border: none;
 }
 
-.nav-tab:hover {
-  background: rgba(59, 130, 246, 0.08);
-  color: #3B82F6;
+.topnav-item:hover {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.9);
 }
 
-.nav-tab.active {
+.topnav-item.active {
+  background: #60A5FA;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(96, 165, 250, 0.3);
+}
+
+.topnav-item.active:hover {
   background: #3B82F6;
-  color: #ffffff;
-  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
-}
-
-.nav-tab.active:hover {
-  background: #2563EB;
-}
-
-.tab-icon {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
 }
 
 /* 右侧操作区 */
@@ -206,5 +186,17 @@ const systemStatusText = computed(() => '系统就绪')
   flex: 1;
   overflow: auto;
   padding: 24px;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .topnav {
+    overflow: auto;
+  }
+  .topnav-item {
+    min-width: 72px;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
 }
 </style>
