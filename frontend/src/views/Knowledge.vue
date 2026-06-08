@@ -556,7 +556,7 @@
                     <div class="weight-row">
                       <label class="field-label-xs">全文权重</label>
                       <div class="weight-slider-wrap">
-                        <input type="range" min="0" max="100" v-model.number="fulltextWeight" class="range-slider range-sm" readonly />
+                        <input type="range" min="0" max="100" :value="fulltextWeight" class="range-slider range-sm" disabled />
                         <span class="weight-value">{{ fulltextWeight }}%</span>
                       </div>
                     </div>
@@ -575,48 +575,123 @@
         </div>
       </div>
       <div v-if="activeTab === 'search'" class="search-section">
-        <div class="section-header">
-          <h2>{{ selectedKb.name }} - 检索测试</h2>
-        </div>
-        <div class="search-box">
-          <div class="search-input-row">
-            <input
-              v-model="searchQuery"
-              class="search-input"
-              placeholder="输入查询内容..."
-              @keyup.enter="doSearch"
-            />
-            <button class="btn btn-primary" @click="doSearch" :disabled="searching">
-              <Search :size="14" />
-              {{ searching ? '搜索中...' : '搜索' }}
-            </button>
+        <!-- 搜索区域 -->
+        <div class="search-hero">
+          <div class="search-hero-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.34-4.34"/></svg>
           </div>
-          <div class="search-options">
-            <select v-model="searchType" class="search-select">
-              <option value="hybrid">混合检索</option>
-              <option value="similarity">向量检索</option>
-              <option value="bm25">BM25 检索</option>
-            </select>
-            <select v-model="searchTopK" class="search-select">
-              <option :value="3">Top 3</option>
-              <option :value="5">Top 5</option>
-              <option :value="10">Top 10</option>
-            </select>
-          </div>
-        </div>
+          <h3 class="search-hero-title">检索测试</h3>
+          <p class="search-hero-desc">在「{{ selectedKb.name }}」中测试向量检索、全文检索和混合检索效果</p>
 
-        <div v-if="searchResults.length > 0" class="search-results">
-          <div v-for="(result, idx) in searchResults" :key="idx" class="search-result-item">
-            <div class="result-header">
-              <span class="result-rank">#{{ idx + 1 }}</span>
-              <span class="result-score">得分: {{ (result.score * 100).toFixed(1) }}%</span>
+          <!-- 搜索输入框 -->
+          <div class="search-input-wrap" :class="{ focused: searchFocused }">
+            <div class="search-input-inner">
+              <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.34-4.34"/></svg>
+              <input
+                v-model="searchQuery"
+                class="search-input"
+                placeholder="输入查询内容，按 Enter 或点击搜索..."
+                @focus="searchFocused = true"
+                @blur="searchFocused = false"
+                @keyup.enter="doSearch"
+              />
+              <button class="btn-search" @click="doSearch" :disabled="searching || !searchQuery.trim()">
+                <svg v-if="!searching" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.34-4.34"/></svg>
+                <span v-else class="spinner-sm"></span>
+                {{ searching ? '搜索中' : '搜索' }}
+              </button>
             </div>
-            <div class="result-content">{{ result.content }}</div>
+
+            <!-- 检索模式选择 -->
+            <div class="search-mode-bar">
+              <button
+                v-for="mode in searchModes"
+                :key="mode.value"
+                class="mode-chip"
+                :class="{ active: searchType === mode.value }"
+                @click="searchType = mode.value"
+              >
+                <span class="mode-icon">{{ mode.icon }}</span>
+                <span>{{ mode.label }}</span>
+              </button>
+              <div class="mode-divider"></div>
+              <select v-model.number="searchTopK" class="topk-select">
+                <option :value="3">Top 3</option>
+                <option :value="5">Top 5</option>
+                <option :value="10">Top 10</option>
+                <option :value="20">Top 20</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        <div v-else-if="searched" class="empty-state small">
-          <div class="empty-title">未找到相关结果</div>
+        <!-- 结果区域 -->
+        <template v-if="searchResults.length > 0">
+          <div class="results-header">
+            <span class="results-count">找到 <strong>{{ searchResults.length }}</strong> 条相关结果</span>
+            <span class="results-meta">{{ searchTypeLabel(searchType) }} · Top {{ searchTopK }}</span>
+          </div>
+          <div class="results-list">
+            <TransitionGroup name="result">
+              <div v-for="(result, idx) in searchResults" :key="idx" class="result-card">
+                <div class="result-card-left">
+                  <div class="result-rank-badge" :class="'rank-' + (idx + 1)">
+                    {{ idx + 1 }}
+                  </div>
+                </div>
+                <div class="result-card-body">
+                  <div class="result-card-top">
+                    <span class="result-source" v-if="result.documentName || result.chunkIndex !== undefined">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      {{ result.documentName || `分块 #${(result.chunkIndex ?? idx) + 1}` }}
+                    </span>
+                    <div class="result-score-bar">
+                      <div class="score-track">
+                        <div class="score-fill" :style="{ width: Math.min(result.score * 100, 100) + '%' }"></div>
+                      </div>
+                      <span class="score-text">{{ (result.score * 100).toFixed(1) }}%</span>
+                    </div>
+                  </div>
+                  <p class="result-text">{{ result.content }}</p>
+                  <div class="result-tags" v-if="result.method">
+                    <span class="tag tag-method" :class="'tag-' + result.method">{{ methodLabel(result.method) }}</span>
+                    <span class="tag" v-if="result.bm25Score">BM25: {{ (result.bm25Score * 100).toFixed(1) }}%</span>
+                    <span class="tag" v-if="result.vectorScore">Vec: {{ (result.vectorScore * 100).toFixed(1) }}%</span>
+                  </div>
+                </div>
+              </div>
+            </TransitionGroup>
+          </div>
+        </template>
+
+        <!-- 空状态 -->
+        <div v-else-if="searched" class="empty-state-search">
+          <div class="empty-icon-lg">🔍</div>
+          <h4>未找到相关结果</h4>
+          <p>尝试更换关键词或调整检索模式</p>
+          <button class="btn btn-outline" @click="searchQuery = ''; searched = false">清除查询</button>
+        </div>
+
+        <!-- 初始提示 -->
+        <div v-else class="empty-hint">
+          <div class="hint-cards">
+            <div class="hint-card">
+              <div class="hint-card-icon">📐</div>
+              <div class="hint-card-title">向量检索</div>
+              <div class="hint-card-desc">基于语义相似度匹配，适合概念性查询</div>
+            </div>
+            <div class="hint-card">
+              <div class="hint-card-icon">📄</div>
+              <div class="hint-card-title">全文检索</div>
+              <div class="hint-card-desc">基于关键词精确匹配，适合专有名词查询</div>
+            </div>
+            <div class="hint-card hint-card-active">
+              <div class="hint-card-icon">🔄</div>
+              <div class="hint-card-title">混合检索</div>
+              <div class="hint-card-desc">融合两种方式 + Rerank 重排序，推荐使用</div>
+              <span class="badge-rec">推荐</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -738,7 +813,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, TransitionGroup } from 'vue'
 import { knowledgeApi } from '@/services/api'
 import type { KnowledgeBase as KB, Document, Chunk, SearchResult } from '@/services/api'
 import {
@@ -770,6 +845,23 @@ const searchTopK = ref(5)
 const searchResults = ref<SearchResult[]>([])
 const searching = ref(false)
 const searched = ref(false)
+const searchFocused = ref(false)
+
+const searchModes = [
+  { value: 'hybrid', label: '混合检索', icon: '🔄' },
+  { value: 'similarity', label: '向量检索', icon: '📐' },
+  { value: 'bm25', label: '全文检索', icon: '📄' },
+]
+
+function searchTypeLabel(type: string) {
+  const map: Record<string, string> = { hybrid: '混合检索', similarity: '向量检索', bm25: '全文检索', vector: '向量', fulltext: '全文' }
+  return map[type] || type
+}
+
+function methodLabel(method: string) {
+  const map: Record<string, string> = { hybrid: '混合', similarity: '向量', bm25: '全文' }
+  return map[method] || method
+}
 
 // 创建/编辑
 const showCreateDialog = ref(false)
@@ -1074,15 +1166,6 @@ async function doSearch() {
 }
 
 // ========== 工具函数 ==========
-function searchTypeLabel(type: string): string {
-  const map: Record<string, string> = {
-    hybrid: '混合检索',
-    similarity: '向量检索',
-    bm25: 'BM25',
-  }
-  return map[type] || type
-}
-
 function statusLabel(status: string): string {
   const map: Record<string, string> = {
     pending: '待处理',
@@ -1439,79 +1522,491 @@ function formatSize(bytes: number): string {
   gap: 4px;
 }
 
-/* ========== 搜索 ========== */
-.search-box {
-  margin-bottom: 20px;
+/* ========== 检索测试（重新设计） ========== */
+.search-section {
+  padding: 24px;
 }
 
-.search-input-row {
+/* 搜索 Hero 区域 */
+.search-hero {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.search-hero-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  color: #3b82f6;
+  margin-bottom: 14px;
+}
+
+.search-hero-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 4px;
+}
+
+.search-hero-desc {
+  font-size: 13.5px;
+  color: #6b7280;
+  margin: 0 0 22px;
+}
+
+/* 搜索输入框容器 */
+.search-input-wrap {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.search-input-inner {
   display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
+  align-items: center;
+  gap: 0;
+  padding: 5px 5px 5px 16px;
+  background: #fff;
+  border: 2px solid #e5e7eb;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.04);
+  transition: all 0.2s ease;
+}
+
+.search-input-wrap.focused .search-input-inner,
+.search-input-inner:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 1px 3px rgba(59,130,246,0.08), 0 12px 32px rgba(59,130,246,0.10);
+}
+
+.search-icon {
+  color: #9ca3af;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.search-input-wrap.focused .search-icon {
+  color: #3b82f6;
 }
 
 .search-input {
   flex: 1;
-  padding: 10px 14px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
+  border: none;
   outline: none;
+  padding: 10px 12px;
+  font-size: 14.5px;
+  color: #1f2937;
+  background: transparent;
+  min-width: 0;
 }
 
-.search-input:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+.search-input::placeholder {
+  color: #c4c9d0;
 }
 
-.search-options {
+.btn-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 20px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+
+.btn-search:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(59,130,246,0.35);
+}
+
+.btn-search:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 模式选择栏 */
+.search-mode-bar {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+  flex-wrap: wrap;
 }
 
-.search-select {
-  padding: 6px 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
+.mode-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 20px;
+  background: #fff;
   font-size: 13px;
-  outline: none;
-  background: #ffffff;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.17s;
+  user-select: none;
 }
 
-.search-results {
+.mode-chip:hover {
+  border-color: #93c5fd;
+  color: #374151;
+  background: #fafbff;
+}
+
+.mode-chip.active {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+  box-shadow: 0 1px 6px rgba(59,130,246,0.12);
+}
+
+.mode-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.mode-divider {
+  width: 1px;
+  height: 20px;
+  background: #e5e7eb;
+  margin: 0 4px;
+}
+
+.topk-select {
+  padding: 6px 12px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #6b7280;
+  outline: none;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.17s;
+}
+
+.topk-select:focus {
+  border-color: #3b82f6;
+}
+
+/* ====== 结果区域 ====== */
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 4px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 16px;
+}
+
+.results-count {
+  font-size: 13.5px;
+  color: #6b7280;
+}
+
+.results-count strong {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.results-meta {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.results-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.search-result-item {
-  padding: 16px;
-  background: #f9fafb;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+/* 结果卡片 */
+.result-card {
+  display: flex;
+  gap: 14px;
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid #eef0f3;
+  border-radius: 14px;
+  transition: all 0.2s;
+  position: relative;
 }
 
-.result-header {
+.result-card:hover {
+  border-color: #dce4ed;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+  transform: translateY(-1px);
+}
+
+.result-card-left {
+  flex-shrink: 0;
   display: flex;
+  align-items: flex-start;
+  padding-top: 2px;
+}
+
+.result-rank-badge {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.result-rank-badge.rank-1 { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.result-rank-badge.rank-2 { background: linear-gradient(135deg, #94a3b8, #64748b); }
+.result-rank-badge.rank-3 { background: linear-gradient(135deg, #cd7c3a, #a16207); }
+.result-rank-badge:not(.rank-1):not(.rank-2):not(.rank-3) {
+  background: #f1f5f9; color: #94a3b8; font-weight: 700;
+}
+
+.result-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.result-card-top {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 8px;
 }
 
-.result-rank {
-  font-size: 12px;
-  font-weight: 600;
-  color: #3b82f6;
-}
-
-.result-score {
+.result-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: #9ca3af;
 }
 
-.result-content {
+.result-source svg {
+  opacity: 0.6;
+}
+
+/* 分数进度条 */
+.result-score-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.score-track {
+  width: 72px;
+  height: 6px;
+  background: #f0f0f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.score-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  transition: width 0.5s ease;
+}
+
+.score-text {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #2563eb;
+  min-width: 44px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-text {
   font-size: 14px;
   color: #374151;
-  line-height: 1.5;
+  line-height: 1.65;
+  margin: 0 0 10px;
+  word-break: break-word;
+}
+
+/* 标签 */
+.result-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.tag-method.tag-hybrid {
+  background: #ede9fe; color: #7c3aed;
+}
+.tag-method.tag-similarity {
+  background: #dbeafe; color: #2563eb;
+}
+.tag-method.tag-bm25 {
+  background: #fef3c7; color: #92400e;
+}
+
+/* ====== 空状态 ====== */
+.empty-state-search {
+  text-align: center;
+  padding: 48px 20px;
+}
+
+.empty-icon-lg {
+  font-size: 44px;
+  margin-bottom: 12px;
+  filter: grayscale(0.3);
+}
+
+.empty-state-search h4 {
+  font-size: 16px;
+  color: #374151;
+  margin: 0 0 6px;
+}
+
+.empty-state-search p {
+  font-size: 13px;
+  color: #9ca3af;
+  margin: 0 0 18px;
+}
+
+.btn-outline {
+  padding: 7px 18px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  background: transparent;
+  color: #4b5563;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-outline:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+  background: #f8faff;
+}
+
+/* 初始提示卡片 */
+.empty-hint {
+  margin-top: 12px;
+}
+
+.hint-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.hint-card {
+  position: relative;
+  padding: 20px 18px;
+  background: #fafbfc;
+  border: 1.5px solid #eef0f3;
+  border-radius: 14px;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.hint-card:hover {
+  border-color: #dce4ed;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+  transform: translateY(-2px);
+}
+
+.hint-card-active {
+  background: linear-gradient(135deg, #eff6ff, #fdf4ff);
+  border-color: #bfdbfe;
+}
+
+.hint-card-icon {
+  font-size: 26px;
+  margin-bottom: 10px;
+}
+
+.hint-card-title {
+  font-size: 14px;
+  font-weight: 650;
+  color: #1f2937;
+  margin-bottom: 5px;
+}
+
+.hint-card-desc {
+  font-size: 12.5px;
+  color: #6b7280;
+  line-height: 1.55;
+}
+
+.badge-rec {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #dcfce7;
+  color: #166534;
+}
+
+/* 加载 spinner */
+.spinner-sm {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 结果动画 */
+.result-enter-active {
+  animation: resultIn 0.35s ease-out;
+}
+
+.result-leave-active {
+  animation: resultOut 0.25s ease-in;
+}
+
+@keyframes resultIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes resultOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-8px); }
 }
 
 /* ========== 弹窗 ========== */
