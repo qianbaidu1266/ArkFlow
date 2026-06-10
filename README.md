@@ -2,6 +2,14 @@
 
 基于 LangGraph4J 开发的可视化 AI 工作流引擎，对标 Dify 的节点编排能力。
 
+![overall.png](docs/pictures/overall.png)
+
+![run.png](docs/pictures/run.png)
+
+![knowledge.png](docs/pictures/knowledge.png)
+
+![settings.png](docs/pictures/settings.png)
+
 ## 核心特性
 
 ### 后端 (Java)
@@ -26,7 +34,7 @@
 - Jackson (JSON处理)
 - HikariCP (连接池)
 - Lettuce (Redis客户端)
-- PGVector (向量数据库)
+- Mlivus (向量数据库)
 
 ### 前端
 - Vue 3 + TypeScript

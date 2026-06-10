@@ -80,6 +80,11 @@ export const workflowApi = {
       execution: executionRes.data,
       snapshots: snapshotsRes.data.snapshots || []
     }
+  },
+
+  async getExecutionSnapshots(executionId: string): Promise<any[]> {
+    const response = await api.get(`/executions/${executionId}/snapshots`)
+    return response.data.snapshots || []
   }
 }
 

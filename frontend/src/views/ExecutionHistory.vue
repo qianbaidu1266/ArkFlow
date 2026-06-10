@@ -28,7 +28,7 @@
     </div>
     <div v-else class="execution-list">
       <div
-        v-for="exec in executions"
+        v-for="exec in pagedExecutions"
         :key="exec.id"
         class="execution-card"
         @click="showDetail(exec)"
@@ -54,6 +54,51 @@
       </div>
     </div>
 
+    <!-- 分页 -->
+    <div v-if="totalPages > 1" class="pagination-bar">
+      <div class="pagination-info">
+        共 {{ executions.length }} 条记录，第 {{ currentPage }} / {{ totalPages }} 页
+      </div>
+      <div class="pagination-controls">
+        <button
+          class="page-btn page-nav"
+          :disabled="currentPage === 1"
+          @click="goPage(currentPage - 1)"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+          上一页
+        </button>
+
+        <template v-for="page in visiblePages" :key="page">
+          <button
+            v-if="page === '...'"
+            class="page-btn page-ellipsis"
+            disabled
+          >...</button>
+          <button
+            v-else
+            class="page-btn"
+            :class="{ active: page === currentPage }"
+            @click="goPage(page as number)"
+          >{{ page }}</button>
+        </template>
+
+        <button
+          class="page-btn page-nav"
+          :disabled="currentPage === totalPages"
+          @click="goPage(currentPage + 1)"
+        >
+          下一页
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+      <select v-model.number="pageSize" @change="onPageSizeChange" class="page-size-select">
+        <option :value="5">5 条/页</option>
+        <option :value="10">10 条/页</option>
+        <option :value="15">15 条/页</option>
+      </select>
+    </div>
+
     <!-- 执行详情弹窗 -->
     <div v-if="selectedExecution" class="modal-overlay" @click.self="selectedExecution = null">
       <div class="modal-content">
@@ -66,68 +111,119 @@
           </button>
         </div>
         <div class="modal-body">
-          <!-- 基本信息 -->
-          <div class="detail-section">
-            <div class="detail-grid">
-              <div class="detail-item">
-                <span class="detail-label">执行 ID</span>
-                <span class="detail-value mono">{{ selectedExecution.id }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">状态</span>
-                <span class="exec-status" :class="statusClass(selectedExecution.status)">
-                  <span class="status-dot"></span>
-                  {{ statusText(selectedExecution.status) }}
-                </span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">工作流</span>
-                <span class="detail-value">{{ getWorkflowName(selectedExecution.workflowId) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">开始时间</span>
-                <span class="detail-value">{{ formatTime(selectedExecution.startTime) }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">耗时</span>
-                <span class="detail-value">{{ selectedExecution.duration ? formatDuration(selectedExecution.duration) : '-' }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Token 用量</span>
-                <span class="detail-value">{{ selectedExecution.totalTokens || '-' }}</span>
-              </div>
+          <!-- 执行概览 -->
+          <div class="exec-overview">
+            <div class="overview-main">
+              <span class="exec-status" :class="statusClass(selectedExecution.status)">
+                <span class="status-dot"></span>
+                {{ statusText(selectedExecution.status) }}
+              </span>
+              <span class="overview-workflow">{{ getWorkflowName(selectedExecution.workflowId) }}</span>
             </div>
-            <div v-if="selectedExecution.error" class="error-block">
-              <span class="error-label">错误信息</span>
-              <pre>{{ selectedExecution.error }}</pre>
+            <div class="overview-meta">
+              <div class="meta-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                <span>{{ formatTime(selectedExecution.startTime) }}</span>
+                <template v-if="selectedExecution.duration">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                  <span>{{ formatDuration(selectedExecution.duration) }}</span>
+                </template>
+                <template v-if="snapshots.length > 0">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                  <span>{{ snapshots.length }} 个节点</span>
+                </template>
+              </div>
             </div>
           </div>
 
-          <!-- 节点执行快照 -->
+          <!-- 错误信息 -->
+          <div v-if="selectedExecution.error" class="error-block">
+            <div class="error-header">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F04438" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              <span>执行失败</span>
+            </div>
+            <pre>{{ selectedExecution.error }}</pre>
+          </div>
+
+          <!-- 节点执行流水线 -->
           <div class="detail-section">
-            <h4>节点执行记录</h4>
-            <div v-if="detailLoading" class="loading-state">加载中...</div>
-            <div v-else-if="snapshots.length === 0" class="empty-hint">暂无节点执行记录</div>
+            <div class="section-header-row">
+              <h4>节点执行记录</h4>
+              <span class="node-count">{{ snapshots.length }} 个节点</span>
+            </div>
+
+            <div v-if="detailLoading" class="loading-state">
+              <div class="spinner-sm"></div>
+              加载节点数据...
+            </div>
+            <div v-else-if="detailError" class="empty-hint error-state">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#F04438" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              <p>加载节点数据失败</p>
+              <span class="error-msg">{{ detailError }}</span>
+              <button class="btn-retry" @click="showDetail(selectedExecution)">重试</button>
+            </div>
+            <div v-else-if="snapshots.length === 0" class="empty-hint">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+              暂无节点执行记录
+            </div>
             <div v-else class="snapshot-timeline">
-              <div v-for="snapshot in snapshots" :key="snapshot.id" class="snapshot-item">
-                <div class="snapshot-dot" :class="statusClass(snapshot.status)"></div>
-                <div class="snapshot-card">
+              <div v-for="(snapshot, index) in snapshots" :key="snapshot.id" class="snapshot-item">
+                <!-- 连接线 -->
+                <div v-if="index < snapshots.length - 1" class="snapshot-line" :class="'line-' + statusClass(snapshot.status)"></div>
+
+                <!-- 节点圆点 -->
+                <div class="snapshot-dot" :class="statusClass(snapshot.status)">
+                  <svg v-if="snapshot.nodeType === 'start' || snapshot.nodeType === 'end'" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg>
+                  <svg v-else-if="snapshot.nodeType === 'agent'" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                  <svg v-else-if="snapshot.nodeType === 'code'" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+                  <svg v-else width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>
+                </div>
+
+                <!-- 节点卡片 -->
+                <div class="snapshot-card" :class="{ 'card-error': snapshot.errorMessage }">
                   <div class="snapshot-header">
-                    <span class="snapshot-name">{{ snapshot.nodeName }}</span>
-                    <span class="snapshot-type">{{ snapshot.nodeType }}</span>
-                    <span class="exec-status sm" :class="statusClass(snapshot.status)">
-                      {{ statusText(snapshot.status) }}
-                    </span>
+                    <div class="snapshot-title-row">
+                      <span class="snapshot-name">{{ snapshot.nodeName }}</span>
+                      <span class="snapshot-type-badge" :class="'badge-' + snapshot.nodeType">{{ nodeTypeLabel(snapshot.nodeType) }}</span>
+                      <span class="exec-status sm" :class="statusClass(snapshot.status)">
+                        {{ statusText(snapshot.status) }}
+                      </span>
+                    </div>
+                    <div class="snapshot-stats">
+                      <span v-if="snapshot.duration" class="stat-tag">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                        {{ formatDuration(snapshot.duration) }}
+                      </span>
+                      <span v-if="snapshot.totalTokens > 0" class="stat-tag">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                        {{ snapshot.totalTokens }}
+                      </span>
+                      <span v-if="snapshot.startTime" class="stat-tag time">{{ formatTime(snapshot.startTime) }}</span>
+                    </div>
                   </div>
-                  <div class="snapshot-meta">
-                    <span v-if="snapshot.duration">{{ formatDuration(snapshot.duration) }}</span>
-                    <span v-if="snapshot.totalTokens">{{ snapshot.totalTokens }} tokens</span>
-                    <span v-if="snapshot.startTime">{{ formatTime(snapshot.startTime) }}</span>
+
+                  <!-- 输入 -->
+                  <div v-if="snapshot.inputs && Object.keys(snapshot.inputs).length > 0" class="snapshot-data-block">
+                    <div class="data-label">输入</div>
+                    <div class="data-content">{{ formatSnapshotData(snapshot.inputs) }}</div>
                   </div>
-                  <div v-if="snapshot.errorMessage" class="snapshot-error">{{ snapshot.errorMessage }}</div>
-                  <details v-if="snapshot.outputs" class="snapshot-details">
-                    <summary>输出结果</summary>
-                    <pre>{{ JSON.stringify(snapshot.outputs, null, 2) }}</pre>
+
+                  <!-- 输出 -->
+                  <div v-if="snapshot.outputs && Object.keys(snapshot.outputs).length > 0" class="snapshot-data-block output">
+                    <div class="data-label">输出</div>
+                    <div class="data-content">{{ formatSnapshotData(snapshot.outputs) }}</div>
+                  </div>
+
+                  <!-- 错误 -->
+                  <div v-if="snapshot.errorMessage" class="snapshot-error-inline">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F04438" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    {{ snapshot.errorMessage }}
+                  </div>
+
+                  <!-- 展开详情 -->
+                  <details v-if="(snapshot.outputs && Object.keys(snapshot.outputs).length > 0) || (snapshot.inputs && Object.keys(snapshot.inputs).length > 0)" class="snapshot-details">
+                    <summary>查看原始 JSON</summary>
+                    <pre><code>{{ JSON.stringify({ inputs: snapshot.inputs, outputs: snapshot.outputs }, null, 2) }}</code></pre>
                   </details>
                 </div>
               </div>
@@ -140,7 +236,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { workflowApi } from '@/services/api'
 
 const executions = ref<any[]>([])
@@ -150,6 +246,44 @@ const filterWorkflowId = ref('')
 const selectedExecution = ref<any>(null)
 const snapshots = ref<any[]>([])
 const detailLoading = ref(false)
+const detailError = ref<string | null>(null)
+
+// 分页
+const currentPage = ref(1)
+const pageSize = ref(10)
+
+const totalPages = computed(() => Math.max(1, Math.ceil(executions.value.length / pageSize.value)))
+
+const pagedExecutions = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return executions.value.slice(start, start + pageSize.value)
+})
+
+// 页码显示（带省略号）
+const visiblePages = computed<(number | string)[]>(() => {
+  const total = totalPages.value
+  const current = currentPage.value
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages: (number | string)[] = [1]
+  if (current > 3) pages.push('...')
+  for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) {
+    pages.push(i)
+  }
+  if (current < total - 2) pages.push('...')
+  pages.push(total)
+  return pages
+})
+
+function goPage(page: number) {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+}
+
+function onPageSizeChange() {
+  currentPage.value = 1
+}
 
 onMounted(async () => {
   await Promise.all([loadWorkflows(), loadExecutions()])
@@ -165,6 +299,7 @@ async function loadWorkflows() {
 
 async function loadExecutions() {
   loading.value = true
+  currentPage.value = 1
   try {
     executions.value = await workflowApi.listExecutions(filterWorkflowId.value || undefined)
   } catch (e) {
@@ -178,12 +313,15 @@ async function loadExecutions() {
 async function showDetail(exec: any) {
   selectedExecution.value = exec
   snapshots.value = []
+  detailError.value = null
   detailLoading.value = true
   try {
-    const detail = await workflowApi.getExecutionDetail(exec.id)
-    snapshots.value = detail.snapshots
+    // 只调用 snapshots 接口（/executions/:id 单独接口可能 404）
+    const snapshotsRes = await workflowApi.getExecutionSnapshots(exec.id)
+    snapshots.value = snapshotsRes || []
   } catch (e) {
-    console.error('Failed to load execution detail', e)
+    console.error('[ExecutionHistory] Failed to load execution detail', e)
+    detailError.value = e instanceof Error ? e.message : String(e)
   } finally {
     detailLoading.value = false
   }
@@ -234,6 +372,18 @@ function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
   return `${(ms / 60000).toFixed(1)}min`
+}
+
+function nodeTypeLabel(type: string): string {
+  const map: Record<string, string> = { start: '开始', end: '结束', agent: 'Agent', code: '代码', tool: '工具', condition: '条件', llm: 'LLM' }
+  return map[type] || type
+}
+
+function formatSnapshotData(data: any): string {
+  if (!data || typeof data !== 'object') return String(data ?? '')
+  // 截断长文本
+  const str = JSON.stringify(data, null, 2)
+  return str.length > 200 ? str.substring(0, 200) + '...' : str
 }
 </script>
 
@@ -696,5 +846,325 @@ function formatDuration(ms: number): string {
   color: #94A3B8;
   text-align: center;
   padding: 20px;
+}
+
+.empty-hint.error-state p {
+  margin: 10px 0 4px;
+  font-weight: 500;
+  color: #B42318;
+}
+
+.error-msg {
+  display: block;
+  font-size: 12px;
+  color: #F04438;
+  word-break: break-all;
+  max-width: 400px;
+  margin: 0 auto 12px;
+}
+
+.btn-retry {
+  padding: 6px 16px;
+  border: 1px solid #FECACA;
+  border-radius: 8px;
+  background: #FEF2F2;
+  color: #B42318;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-retry:hover {
+  background: #FEE2E2;
+  border-color: #FCA5A5;
+}
+
+/* 分页 */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0 8px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.pagination-info {
+  font-size: 13px;
+  color: #64748B;
+  white-space: nowrap;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.page-btn:hover:not(:disabled):not(.active) {
+  border-color: #93C5FD;
+  background: #F0F7FF;
+  color: #1D4ED8;
+}
+
+.page-btn.active {
+  background: #3B82F6;
+  border-color: #3B82F6;
+  color: #fff;
+  font-weight: 600;
+}
+
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.page-nav {
+  gap: 4px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.page-ellipsis {
+  border: none;
+  background: transparent;
+  color: #94A3B8;
+  min-width: auto;
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+}
+
+.page-size-select {
+  padding: 6px 10px;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #475569;
+  background: #fff;
+  outline: none;
+  cursor: pointer;
+}
+
+.page-size-select:focus {
+  border-color: #3B82F6;
+}
+
+/* 执行概览 */
+.exec-overview {
+  background: linear-gradient(135deg, #F0F7FF 0%, #F8FAFC 100%);
+  border: 1px solid #DBEAFE;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+
+.overview-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.overview-workflow {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1E293B;
+}
+
+.overview-meta .meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #64748B;
+}
+
+.error-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #B42318;
+  margin-bottom: 8px;
+}
+
+/* 节点记录标题行 */
+.section-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.section-header-row h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1E293B;
+}
+
+.node-count {
+  font-size: 12px;
+  color: #94A3B8;
+  background: #F1F5F9;
+  padding: 2px 10px;
+  border-radius: 10px;
+}
+
+/* 连接线 */
+.snapshot-line {
+  position: absolute;
+  left: 5px;
+  top: 24px;
+  bottom: -4px;
+  width: 2px;
+}
+.snapshot-line.line-success { background: linear-gradient(to bottom, #12B76A, #93D9A9); }
+.snapshot-line.line-failed { background: linear-gradient(to bottom, #F04438, #FCA5A5); }
+.snapshot-line.line-running { background: linear-gradient(to bottom, #3B82F6, #93C5FD); }
+.snapshot-line.line-pending { background: #E2E8F0; }
+
+/* 节点圆点增强 */
+.snapshot-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.snapshot-dot.success svg { color: #fff; }
+.snapshot-dot.failed svg { color: #fff; }
+.snapshot-dot.running svg { color: #fff; }
+.snapshot-dot.pending svg { color: #94A3B8; }
+
+/* 卡片增强 */
+.snapshot-card.card-error {
+  border-color: #FECACA;
+  background: #FEF2F2;
+}
+
+.snapshot-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.snapshot-type-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+.badge-start, .badge-end { background: #EDE9FE; color: #7C3AED; }
+.badge-agent { background: #EFF6FF; color: #2563EB; }
+.badge-code { background: #ECFDF5; color: #059669; }
+.badge-tool { background: #FFF7ED; color: #EA580C; }
+.badge-condition { background: #FDF4FF; color: #C026D3; }
+.badge-llm { background: #FFF1F2; color: #E11D48; }
+
+/* 统计标签 */
+.snapshot-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.stat-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: #64748B;
+  background: #F1F5F9;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.stat-tag.time { color: #94A3B8; font-family: 'SF Mono', monospace; font-size: 10px; }
+
+/* 数据块展示 */
+.snapshot-data-block {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #F8FAFC;
+  border-radius: 6px;
+  border-left: 3px solid #CBD5E1;
+}
+.snapshot-data-block.output {
+  border-left-color: #3B82F6;
+  background: #F0F7FF;
+}
+
+.data-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.data-content {
+  font-size: 12px;
+  color: #334155;
+  line-height: 1.5;
+  word-break: break-all;
+  white-space: pre-wrap;
+  max-height: 80px;
+  overflow-y: auto;
+  font-family: 'SF Mono', Monaco, monospace;
+}
+
+/* 内联错误 */
+.snapshot-error-inline {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #B42318;
+  word-break: break-all;
+}
+.snapshot-error-inline svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* 加载动画 */
+.spinner-sm {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #E2E8F0;
+  border-top-color: #3B82F6;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin: 0 auto 8px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>
