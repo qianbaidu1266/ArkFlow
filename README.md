@@ -16,24 +16,17 @@
 
 ## 截图预览
 
-<table>
-  <tr>
-    <td align="center"><b>工作流编排</b></td>
-    <td align="center"><b>运行监控</b></td>
-  </tr>
-  <tr>
-    <td><img src="docs/pictures/overall.png" alt="工作流编排" width="480"/></td>
-    <td><img src="docs/pictures/run.png" alt="运行监控" width="480"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>知识库管理</b></td>
-    <td align="center"><b>系统设置</b></td>
-  </tr>
-  <tr>
-    <td><img src="docs/pictures/knowledge.png" alt="知识库管理" width="480"/></td>
-    <td><img src="docs/pictures/settings.png" alt="系统设置" width="480"/></td>
-  </tr>
-</table>
+### 工作流编排
+<img src="docs/pictures/overall.png" alt="工作流编排" width="800"/>
+
+### 运行监控
+<img src="docs/pictures/run.png" alt="运行监控" width="800"/>
+
+### 知识库管理
+<img src="docs/pictures/knowledge.png" alt="知识库管理" width="800"/>
+
+### 系统设置
+<img src="docs/pictures/settings.png" alt="系统设置" width="800"/>
 
 ## 功能特性
 
