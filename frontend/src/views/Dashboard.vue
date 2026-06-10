@@ -140,6 +140,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useWorkflowStore } from '@/stores/workflow'
+import { knowledgeApi, workflowApi } from '@/services/api'
 
 const workflowStore = useWorkflowStore()
 
@@ -159,6 +160,22 @@ const services = ref({
 onMounted(async () => {
   await workflowStore.fetchWorkflows()
   stats.value.workflowCount = workflowStore.workflows.length
+
+  // 获取知识库数量
+  try {
+    const knowledgeBases = await knowledgeApi.list()
+    stats.value.knowledgeCount = knowledgeBases.length
+  } catch (e) {
+    console.error('Failed to fetch knowledge bases', e)
+  }
+
+  // 获取运行次数
+  try {
+    const executions = await workflowApi.listExecutions()
+    stats.value.runCount = executions.length
+  } catch (e) {
+    console.error('Failed to fetch executions', e)
+  }
 })
 </script>
 
